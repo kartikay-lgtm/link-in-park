@@ -13,6 +13,8 @@ const PATHS: Record<string, string> = {
   more: 'M5 12h.01M12 12h.01M19 12h.01',
   link: 'M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1',
   back: 'M19 12H5m0 0 6 6m-6-6 6-6',
+  eye: 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Zm10-3a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z',
+  eyeOff: 'M3 3l18 18M10.6 10.6a3 3 0 0 0 4.2 4.2M9.9 5.1A11 11 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.2M6.6 6.6C4 8.4 2 12 2 12s3.5 7 10 7c1.4 0 2.7-.3 3.8-.7',
 };
 
 export default function Icon({ name, size = 16, className, style }: { name: keyof typeof PATHS; size?: number; className?: string; style?: React.CSSProperties }) {
