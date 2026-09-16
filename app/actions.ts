@@ -160,7 +160,10 @@ export async function refreshAnalyticsAction(): Promise<ActionResult<null>> {
 
 /* ---- login ----------------------------------------------------------------- */
 
-export async function loginAction(_prev: { error: string } | null, form: FormData): Promise<{ error: string }> {
+/* Sets the session cookie and reports success; the form then navigates.
+   Redirecting from inside the action does not work here: the login gate
+   evaluates the redirect target before the browser holds the new cookie. */
+export async function loginAction(_prev: { error: string; ok?: boolean } | null, form: FormData): Promise<{ error: string; ok?: boolean }> {
   const password = String(form.get('password') || '');
   if (!env.appPassword || password !== env.appPassword) {
     return { error: 'That password is not right.' };
@@ -170,7 +173,7 @@ export async function loginAction(_prev: { error: string } | null, form: FormDat
     httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/',
     maxAge: 60 * 60 * 24 * 30,
   });
-  redirect('/');
+  return { error: '', ok: true };
 }
 
 export async function logoutAction(): Promise<void> {

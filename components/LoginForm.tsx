@@ -1,10 +1,11 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useEffect } from 'react';
 import { loginAction } from '@/app/actions';
 
 export default function LoginForm() {
   const [state, action, pending] = useActionState(loginAction, null);
+  useEffect(() => { if (state?.ok) window.location.assign('/'); }, [state]);
   return (
     <form action={action} className="panel p-6 space-y-4 max-w-sm">
       <div>
