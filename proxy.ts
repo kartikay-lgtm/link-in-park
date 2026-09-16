@@ -8,7 +8,7 @@ export async function proxy(request: NextRequest) {
   if (!password) return NextResponse.next();
 
   const { pathname } = request.nextUrl;
-  if (pathname === '/login' || pathname.startsWith('/api/sync')) return NextResponse.next();
+  if (pathname === '/login' || pathname === '/api/login' || pathname.startsWith('/api/sync')) return NextResponse.next();
 
   const ok = await isValidSession(password, request.cookies.get(SESSION_COOKIE)?.value);
   if (ok) return NextResponse.next();

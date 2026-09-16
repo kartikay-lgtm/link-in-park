@@ -1,19 +1,12 @@
-'use client';
-
-import { useActionState, useEffect } from 'react';
-import { loginAction } from '@/app/actions';
-
-export default function LoginForm() {
-  const [state, action, pending] = useActionState(loginAction, null);
-  useEffect(() => { if (state?.ok) window.location.assign('/'); }, [state]);
+export default function LoginForm({ error = false }: { error?: boolean }) {
   return (
-    <form action={action} className="panel p-6 space-y-4 max-w-sm">
+    <form method="post" action="/api/login" className="panel p-6 space-y-4 max-w-sm">
       <div>
         <label className="label" htmlFor="password">Password</label>
         <input id="password" name="password" type="password" className="input" autoFocus required />
       </div>
-      {state?.error && <div className="alert alert-bad">{state.error}</div>}
-      <button className="btn btn-primary" type="submit" disabled={pending}>{pending ? 'Checking…' : 'Sign in'}</button>
+      {error && <div className="alert alert-bad">That password is not right.</div>}
+      <button className="btn btn-primary" type="submit">Sign in</button>
     </form>
   );
 }
