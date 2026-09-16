@@ -1,26 +1,218 @@
 @import "tailwindcss";
 
+/* ── Design tokens ─────────────────────────────────────────────────────────
+   One quiet palette: warm off-white canvas, white surfaces, ink for text and
+   the primary action, a single accent reserved for links, focus and the
+   active state. Hairlines separate; boxes are rare. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #f7f7f5;
+  --panel: #ffffff;
+  --panel-2: #f1f1ee;
+  --ink: #161616;
+  --ink-2: #5c5c58;
+  --ink-3: #9a9a94;
+  --line: #ebebe7;
+  --line-2: #dcdcd6;
+  --accent: #3d5afe;
+  --accent-ink: #2f46c9;
+  --tint: #eef1ff;
+  --ok: #157f4a;    --ok-bg: #e9f6ee;
+  --warn: #9a5b00;  --warn-bg: #fff4e0;
+  --bad: #c62828;   --bad-bg: #fdecec;
+  --primary: var(--ink);     /* the one solid button */
+  --on-primary: #ffffff;
+  --hover: #fbfbfa;
+  --series-blue: #2a78d6;    /* chart series, validated for this surface */
+  --series-orange: #eb6834;
+  --series-aqua: #1baf7a;
+  --radius: 10px;
+  --shadow: 0 1px 2px rgba(20, 20, 20, .04), 0 8px 24px rgba(20, 20, 20, .06);
+  /* back-compat aliases used by a few components */
+  --muted: var(--ink-2);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* ── Themes ─────────────────────────────────────────────────────────────────
+   Same tokens, different values. The default above is "Paper". */
+:root[data-theme="trellis"] {
+  --bg: #f4f3ea; --panel: #fffefa; --panel-2: #ebeadf;
+  --ink: #17211b; --ink-2: #59645d; --ink-3: #96a199;
+  --line: #e4e3d7; --line-2: #d1d0c2;
+  --accent: #1f7a4d; --accent-ink: #176240; --tint: #e3f1e8;
+  --ok: #1f7a4d; --ok-bg: #e3f1e8; --warn: #9a5b00; --warn-bg: #fdf3dc; --bad: #b3261e; --bad-bg: #fbe9e7;
+  --primary: #1f7a4d; --on-primary: #ffffff; --hover: #faf9f1;
 }
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root[data-theme="midnight"] {
+  color-scheme: dark;
+  --bg: #0f1013; --panel: #16181c; --panel-2: #1f2227;
+  --ink: #ececec; --ink-2: #a3a7ad; --ink-3: #6b7078;
+  --line: #24272d; --line-2: #33373e;
+  --accent: #7c8cff; --accent-ink: #aab3ff; --tint: #1e2240;
+  --ok: #4ade80; --ok-bg: #12291b; --warn: #f5b95a; --warn-bg: #2e2412; --bad: #f87171; --bad-bg: #2f1616;
+  --primary: #ececec; --on-primary: #111111; --hover: #1a1d22;
+  --series-blue: #3987e5; --series-orange: #d95926; --series-aqua: #199e70;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .5);
 }
+:root[data-theme="hybrid"] {
+  color-scheme: dark;
+  --bg: #0b0b0b; --panel: #141414; --panel-2: #1d1d1d;
+  --ink: #f2f2f2; --ink-2: #a8a8a8; --ink-3: #6e6e6e;
+  --line: #222222; --line-2: #343434;
+  --accent: #c8f542; --accent-ink: #d9ff5c; --tint: #26300f;
+  --ok: #86efac; --ok-bg: #14281b; --warn: #fbbf24; --warn-bg: #2c2410; --bad: #f87171; --bad-bg: #2f1616;
+  --primary: #c8f542; --on-primary: #0b0b0b; --hover: #181818;
+  --series-blue: #3987e5; --series-orange: #d95926; --series-aqua: #199e70;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 8px 24px rgba(0, 0, 0, .6);
+}
+:root[data-theme="midnight"] ::selection, :root[data-theme="hybrid"] ::selection { background: #32406b; }
 
+html { color-scheme: light; }
+html, body { transition: background-color .15s ease, color .15s ease; }
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.005em;
 }
+h1, h2, h3 { letter-spacing: -0.015em; }
+::selection { background: #dfe5ff; }
+
+.muted { color: var(--ink-2); }
+.faint { color: var(--ink-3); }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em; }
+.num, .tabular { font-variant-numeric: tabular-nums; }
+
+/* ── Surfaces ───────────────────────────────────────────────────────────── */
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+.section-title { font-size: 16px; font-weight: 600; color: var(--ink); letter-spacing: -0.01em; line-height: 1.3; }
+.section-title .faint, .section-title .muted { font-size: 13px; font-weight: 400; }
+.hairline { border-top: 1px solid var(--line); }
+
+/* ── Buttons ────────────────────────────────────────────────────────────────
+   Ghost by default; one solid primary per screen. */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 32px; padding: 0 12px; border-radius: 8px;
+  font-size: 13.5px; font-weight: 500; line-height: 1;
+  border: 1px solid transparent; background: transparent; color: var(--ink);
+  cursor: pointer; white-space: nowrap; text-decoration: none;
+  transition: background .12s ease, border-color .12s ease, color .12s ease;
+}
+.btn:hover { background: var(--panel-2); }
+.btn:disabled { opacity: .45; cursor: default; background: transparent; }
+.btn-primary { background: var(--primary); color: var(--on-primary); }
+.btn-primary:hover { filter: brightness(1.12); }
+.btn-primary:disabled { background: var(--primary); }
+.btn-outline { border-color: var(--line-2); background: var(--panel); }
+.btn-outline:hover { background: var(--panel-2); }
+.btn-sm { height: 28px; padding: 0 10px; font-size: 13px; }
+.btn-icon { width: 28px; height: 28px; padding: 0; justify-content: center; color: var(--ink-2); }
+.btn-icon:hover { color: var(--ink); }
+.btn-danger { color: var(--bad); }
+.btn-active { background: var(--tint); color: var(--accent-ink); }
+.btn-active:hover { background: var(--tint); }
+.link { color: var(--accent-ink); text-decoration: none; }
+.link:hover { text-decoration: underline; }
+
+/* Segmented control */
+.seg { display: inline-flex; background: var(--panel-2); border-radius: 9px; padding: 3px; gap: 2px; }
+.seg button {
+  height: 26px; padding: 0 10px; border-radius: 7px; font-size: 13px; font-weight: 500;
+  color: var(--ink-2); background: transparent; border: 0; cursor: pointer; white-space: nowrap;
+}
+.seg button:hover { color: var(--ink); }
+.seg button.on { background: var(--panel); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.18); }
+.seg button .cnt { color: var(--ink-3); margin-left: 5px; font-weight: 400; font-variant-numeric: tabular-nums; }
+
+/* ── Inputs ─────────────────────────────────────────────────────────────── */
+.input, .textarea, .select {
+  height: 32px; padding: 0 10px; border-radius: 8px; font-size: 13.5px;
+  border: 1px solid var(--line-2); background: var(--panel); color: var(--ink);
+  outline: none; transition: border-color .12s ease, box-shadow .12s ease;
+}
+.textarea { height: auto; padding: 8px 10px; line-height: 1.45; width: 100%; }
+.input { width: 100%; }
+.input:focus, .textarea:focus, .select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--tint); }
+.input::placeholder { color: var(--ink-3); }
+.select { appearance: none; padding-right: 26px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239a9a94' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; }
+.label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+.help { font-size: 12px; color: var(--ink-2); margin-top: 6px; }
+.search { position: relative; }
+.search svg { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--ink-3); pointer-events: none; }
+.search .input { padding-left: 30px; }
+
+/* ── Badges & chips ───────────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 7px; border-radius: 6px; font-size: 11.5px; font-weight: 500; line-height: 1.4;
+  background: var(--panel-2); color: var(--ink-2); border: 0;
+}
+.badge.mono { font-size: 11px; }
+.badge-ok { background: var(--ok-bg); color: var(--ok); }
+.badge-warn { background: var(--warn-bg); color: var(--warn); }
+.badge-bad { background: var(--bad-bg); color: var(--bad); }
+.badge-muted { background: var(--panel-2); color: var(--ink-3); }
+.badge-accent { background: var(--tint); color: var(--accent-ink); }
+button.badge { cursor: pointer; }
+button.badge:hover { background: var(--tint); color: var(--accent-ink); }
+.chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px 0 10px; border-radius: 999px; background: var(--tint); color: var(--accent-ink); font-size: 12.5px; font-weight: 500; }
+.chip button { color: inherit; opacity: .7; line-height: 1; }
+.chip button:hover { opacity: 1; }
+
+/* ── Tables ──────────────────────────────────────────────────────────────── */
+.table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.table th {
+  text-align: left; font-size: 12.5px; font-weight: 600; color: var(--ink);
+  padding: 10px 12px; border-bottom: 1px solid var(--line-2); white-space: nowrap; background: var(--panel-2);
+}
+.table thead th:first-child { border-top-left-radius: var(--radius); }
+.table thead th:last-child { border-top-right-radius: var(--radius); }
+.table th button { color: inherit; font: inherit; }
+.table td { padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.table tbody tr:last-child td { border-bottom: 0; }
+.table tbody tr:hover td { background: var(--hover); }
+.table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.table th.num { text-align: right; }
+.table-tight th { padding: 8px 10px; }
+.table-tight td { padding: 7px 10px; font-size: 13px; }
+
+/* ── Alerts ─────────────────────────────────────────────────────────────── */
+.alert { padding: 10px 14px; border-radius: 10px; font-size: 13.5px; }
+.alert-info { background: var(--tint); color: var(--accent-ink); }
+.alert-ok { background: var(--ok-bg); color: var(--ok); }
+.alert-warn { background: var(--warn-bg); color: var(--warn); }
+.alert-bad { background: var(--bad-bg); color: var(--bad); }
+
+/* ── Hero numbers (no boxes) ─────────────────────────────────────────────── */
+.hero { display: flex; flex-wrap: wrap; gap: 8px 40px; padding: 14px 0 16px; border-bottom: 1px solid var(--line); }
+.hero .k { font-size: 12px; color: var(--ink-2); font-weight: 500; }
+.hero .v { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.15; margin-top: 2px; }
+.hero .s { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+
+/* legacy stat tiles still used on a couple of pages */
+.stat { padding: 12px 14px; }
+.stat .k { font-size: 12px; color: var(--ink-2); font-weight: 500; }
+.stat .v { font-size: 24px; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.stat .s { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+
+/* ── Sidebar ───────────────────────────────────────────────────────────────── */
+.side-item {
+  display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 8px; border-radius: 7px;
+  font-size: 13.5px; color: var(--ink); cursor: pointer; user-select: none;
+}
+.side-item:hover { background: var(--panel-2); }
+.side-item.on { background: var(--tint); color: var(--accent-ink); font-weight: 500; }
+.side-item .cnt { margin-left: auto; font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.side-item.on .cnt { color: var(--accent-ink); opacity: .7; }
+.side-item .more { opacity: .45; color: var(--ink-3); display: inline-flex; }
+.side-item:hover .more, .side-item.on .more { opacity: 1; }
+.side-rail { border-left: 1px solid var(--line); margin-left: 15px; padding-left: 6px; }
+
+/* ── Misc ─────────────────────────────────────────────────────────────────── */
+.menu { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); padding: 4px; }
+.menu button { display: block; width: 100%; text-align: left; padding: 7px 10px; border-radius: 6px; font-size: 13px; }
+.menu button:hover { background: var(--panel-2); }
+.kbd { font-size: 11px; color: var(--ink-3); border: 1px solid var(--line-2); border-radius: 4px; padding: 0 4px; }
