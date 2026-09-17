@@ -23,6 +23,8 @@ export type ListRow = {
   clicks: number | null;
   installs: number | null;
   signups: number | null;
+  liveInstalls: number;   // webhook events since the last sync
+  liveSignups: number;
   landings: number | null; // GA4 sessions (null when GA4 is not connected)
   users: number | null;    // Metabase users (null when not connected)
   active: boolean;
@@ -50,7 +52,7 @@ function dayKeyAgo(days: number): string {
 type Totals = { count: number; clicks: number; installs: number; signups: number; landings: number; users: number };
 const zero = (): Totals => ({ count: 0, clicks: 0, installs: 0, signups: 0, landings: 0, users: 0 });
 function add(t: Totals, r: ListRow): Totals {
-  return { count: t.count + 1, clicks: t.clicks + (r.clicks || 0), installs: t.installs + (r.installs || 0), signups: t.signups + (r.signups || 0), landings: t.landings + (r.landings || 0), users: t.users + (r.users || 0) };
+  return { count: t.count + 1, clicks: t.clicks + (r.clicks || 0), installs: t.installs + (r.installs || 0) + (r.liveInstalls || 0), signups: t.signups + (r.signups || 0) + (r.liveSignups || 0), landings: t.landings + (r.landings || 0), users: t.users + (r.users || 0) };
 }
 const pct = (a: number, b: number) => (b ? `${((100 * a) / b).toFixed(1)}%` : '–');
 
@@ -362,8 +364,8 @@ export default function CampaignTable({ rows, folders, mb }: { rows: ListRow[]; 
                   </td>
                   <td className="whitespace-nowrap text-[12.5px] muted">{fmtDate(r.created)}</td>
                   <td className="num">{n(r.clicks)}</td>
-                  <td className="num">{n(r.installs)}</td>
-                  <td className="num">{n(r.signups)}</td>
+                  <td className="num">{n(r.installs)}{r.liveInstalls > 0 && <span className="badge badge-ok ml-1" title="Installs reported live by Linkrunner since the last refresh">+{r.liveInstalls}</span>}</td>
+                  <td className="num">{n(r.signups)}{r.liveSignups > 0 && <span className="badge badge-ok ml-1" title="Sign-ups reported live by Linkrunner since the last refresh">+{r.liveSignups}</span>}</td>
                   {mb && <td className="num font-semibold" title={`${n(r.signups)} app · ${n(r.users ?? 0)} web`}>{n((r.signups || 0) + (r.users || 0))}</td>}
                   <td>
                     <div className="flex items-center justify-end gap-0.5">

@@ -73,6 +73,7 @@ export type LinkrunnerCampaign = {
   iosWebRedirect: string;
   active: boolean;
   createdAt: string | null;
+  lrId: number | null;          // Linkrunner's numeric id (webhooks use it)
   raw: Json;
 };
 
@@ -91,6 +92,7 @@ function toCampaign(c: Json): LinkrunnerCampaign {
     iosWebRedirect: s(c.ios_web_redirect),
     active: c.active === undefined ? true : Boolean(c.active),
     createdAt: c.created_at ? s(c.created_at) : null,
+    lrId: Number.isFinite(Number(c.id)) && c.id !== null && c.id !== undefined ? Number(c.id) : null,
     raw: c,
   };
 }
@@ -228,8 +230,17 @@ export function reportingNumber(v: unknown): number | null {
    a 429 surfaces as LinkrunnerError with retryAfter set. `limit` caps at 100.
    No from/to: those only set the metrics window, and lifetime totals are what
    a campaign is judged on. */
-export async function fetchReportingPage(page: number): Promise<ReportingPage> {
-  const res = await call('GET', `/reporting/campaigns?limit=100&page=${page}&sort_field=installs&sort_order=descending`);
+export type ReportingQuery = { page?: number; sortField?: 'clicks' | 'installs' | 'signups' | 'created_at'; sortOrder?: 'ascending' | 'descending'; search?: string; limit?: number };
+
+/* One page of numbers. Sorting and `search` (matches name, display id, link)
+   are how a request is aimed at the campaigns that matter, since the
+   endpoint allows one request a minute. */
+export async function fetchReportingPage(pageOrQuery: number | ReportingQuery): Promise<ReportingPage> {
+  const q: ReportingQuery = typeof pageOrQuery === 'number' ? { page: pageOrQuery } : pageOrQuery;
+  const page = q.page || 1;
+  const params = new URLSearchParams({ limit: String(q.limit || 100), page: String(page), sort_field: q.sortField || 'installs', sort_order: q.sortOrder || 'descending' });
+  if (q.search) params.set('search', q.search);
+  const res = await call('GET', `/reporting/campaigns?${params.toString()}`);
   const data = (res.data || {}) as Json;
   const list = (data.campaigns as Json[]) || [];
   const rows: ReportingRow[] = list.map((c) => ({

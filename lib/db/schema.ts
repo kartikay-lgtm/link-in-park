@@ -39,6 +39,8 @@ export const campaigns = pgTable('campaigns', {
   lrDeletedAt: timestamp('lr_deleted_at', { withTimezone: true }),
   // Where the campaign is filed; null = unfiled. Never touched by imports.
   folderId: uuid('folder_id').references(() => folders.id, { onDelete: 'set null' }),
+  // Linkrunner's own numeric id - what its webhooks refer to.
+  lrId: integer('lr_id'),
 });
 
 /* Every web redirect a campaign has ever had. Changing a redirect closes the
@@ -152,3 +154,24 @@ export const activityLog = pgTable(
 
 export type User = typeof users.$inferSelect;
 export type ActivityEntry = typeof activityLog.$inferSelect;
+
+/* ---- live events from Linkrunner webhooks ------------------------------------
+   Installs and sign-ups pushed the moment they happen. Counted on top of the
+   last synced numbers until the next sync catches up. */
+export const lrEvents = pgTable(
+  'lr_events',
+  {
+    id: serial('id').primaryKey(),
+    at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+    kind: text('kind').notNull(),                  // 'install' | 'signup' | 'test' | 'unknown'
+    campaignRef: text('campaign_ref'),             // as sent (id or display id)
+    campaignName: text('campaign_name'),
+    campaignDisplayId: text('campaign_display_id'),// resolved, when possible
+    userName: text('user_name'),
+    phone: text('phone'),
+    email: text('email'),
+    raw: jsonb('raw').$type<Record<string, unknown>>(),
+  },
+  (t) => [index('lr_events_campaign_idx').on(t.campaignDisplayId, t.at)],
+);
+export type LrEvent = typeof lrEvents.$inferSelect;

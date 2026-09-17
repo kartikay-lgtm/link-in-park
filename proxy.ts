@@ -10,7 +10,7 @@ export async function proxy(request: NextRequest) {
   if (!secret) return NextResponse.next();
 
   const { pathname } = request.nextUrl;
-  if (pathname === '/login' || pathname === '/api/login' || pathname.startsWith('/api/sync') || pathname === '/logo.png' || pathname === '/icon.png') return NextResponse.next();
+  if (pathname === '/login' || pathname === '/api/login' || pathname.startsWith('/api/sync') || pathname.startsWith('/api/webhooks/') || pathname === '/logo.png' || pathname === '/icon.png') return NextResponse.next();
 
   const claims = await verifySession(secret, request.cookies.get(SESSION_COOKIE)?.value);
   if (claims) return NextResponse.next();

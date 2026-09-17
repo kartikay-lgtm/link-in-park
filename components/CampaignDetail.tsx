@@ -3,6 +3,7 @@ import CopyButton from '@/components/CopyButton';
 import FolderSelect from '@/components/FolderSelect';
 import { NotesForm, RenameForm } from '@/components/InlineForms';
 import RedirectEditor from '@/components/RedirectEditor';
+import RefreshCampaign from '@/components/RefreshCampaign';
 import SignupsTable from '@/components/SignupsTable';
 import Tabs from '@/components/Tabs';
 import TimeSeriesChart from '@/components/TimeSeriesChart';
@@ -12,6 +13,7 @@ import { gaTotals, webUsersByCampaign } from '@/lib/analytics';
 import { getCampaignDetail, redirectsForIdentifiers } from '@/lib/campaigns';
 import { configured, env } from '@/lib/env';
 import { listFolders } from '@/lib/folders';
+import { liveSince, recentEvents } from '@/lib/live';
 import { dailyFromUsers, SERIES_COLOR, signupsFor, type Series } from '@/lib/signups';
 
 /* One campaign. The first view is deliberately small: what it is, its
@@ -33,12 +35,16 @@ export default async function CampaignDetail({ displayId, inModal = false }: { d
   const others = new Set(sharing.filter((r) => r.campaignDisplayId !== c.displayId).map((r) => r.identifier.toLowerCase()));
   const ownIdentifiers = identifiers.filter((i) => !others.has(i.toLowerCase()));
 
-  const [signups, ga, web, folderRows] = await Promise.all([
+  const [signups, ga, web, folderRows, live, feed] = await Promise.all([
     signupsFor(c.displayId),
     gaTotals(identifiers),
     webUsersByCampaign([{ displayId: c.displayId, name: c.name, identifiers: ownIdentifiers }]),
     listFolders(),
+    liveSince(c.displayId, c.statsAt),
+    recentEvents(c.displayId, 25),
   ]);
+  const liveInstalls = live.filter((e) => e.kind === 'install').length;
+  const liveSignups = live.filter((e) => e.kind === 'signup').length;
   const folders = folderRows.map((f) => ({ id: f.id, name: f.name, parentId: f.parentId, path: f.path, depth: f.depth }));
   const webUsers = web.byCampaign.get(c.displayId) || [];
   const gaMain = mainId ? ga.data.get(mainId.toLowerCase()) : undefined;
@@ -60,12 +66,28 @@ export default async function CampaignDetail({ displayId, inModal = false }: { d
     <div className="space-y-5">
       <div className="hero" style={{ paddingTop: 0 }}>
         <div><div className="k">Clicks</div><div className="v">{n(c.clicks)}</div><div className="s">Linkrunner · {ago(c.statsAt)}</div></div>
-        <div><div className="k">Installs</div><div className="v">{n(c.installs)}</div><div className="s">{pct(c.installs, c.clicks) ? `${pct(c.installs, c.clicks)} of clicks` : ' '}</div></div>
-        <div><div className="k">Sign-ups</div><div className="v">{n(c.signups)}</div><div className="s">{pct(c.signups, c.installs) ? `${pct(c.signups, c.installs)} of installs` : ' '}</div></div>
+        <div><div className="k">Installs</div><div className="v">{n(c.installs)}{liveInstalls > 0 && <span className="badge badge-ok ml-2 align-middle" title="Reported live since the last refresh">+{liveInstalls} live</span>}</div><div className="s">{pct(c.installs, c.clicks) ? `${pct(c.installs, c.clicks)} of clicks` : ' '}</div></div>
+        <div><div className="k">Sign-ups</div><div className="v">{n(c.signups)}{liveSignups > 0 && <span className="badge badge-ok ml-2 align-middle" title="Reported live since the last refresh">+{liveSignups} live</span>}</div><div className="s">{pct(c.signups, c.installs) ? `${pct(c.signups, c.installs)} of installs` : ' '}</div></div>
         {web.configured && <div><div className="k">Web users</div><div className="v">{n(webUsers.length)}</div><div className="s">{webUsers.filter((u) => u.candidateCompleted || u.bossCompleted).length} completed onboarding</div></div>}
         {web.configured && <div><div className="k">People</div><div className="v">{n((c.signups || 0) + webUsers.length)}</div><div className="s">{n(c.signups)} app · {webUsers.length} web</div></div>}
         {ga.configured && <div><div className="k">Landings</div><div className="v">{mainId ? n(gaMain?.sessions ?? 0) : '—'}</div><div className="s">GA4 sessions</div></div>}
       </div>
+      <div className="flex items-center gap-3"><RefreshCampaign displayId={c.displayId} /></div>
+      {feed.length > 0 && (
+        <div className="panel p-4">
+          <div className="section-title mb-2">Live <span className="faint font-normal">· from Linkrunner, as it happens</span></div>
+          <div className="space-y-1 text-[13px]">
+            {feed.map((e) => (
+              <div key={e.id} className="flex items-center gap-2">
+                <span className={`badge ${e.kind === 'signup' ? 'badge-ok' : e.kind === 'install' ? 'badge-accent' : 'badge-muted'}`}>{e.kind === 'signup' ? 'Sign-up' : e.kind === 'install' ? 'Install' : e.kind}</span>
+                <span className="font-medium">{e.userName || <span className="faint">someone</span>}</span>
+                {e.phone && <span className="mono faint text-xs">{e.phone}</span>}
+                <span className="faint text-xs ml-auto whitespace-nowrap">{when(e.at)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <TimeSeriesChart
         title={webUsers.length ? 'Sign-ups per day · app and web' : 'Sign-ups per day'}
         series={series}

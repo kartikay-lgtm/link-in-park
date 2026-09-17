@@ -1,7 +1,7 @@
 import { autoSyncState } from '@/lib/autosync';
 import { webUsersSource } from '@/lib/webusers';
 import { requireAdminPage } from '@/lib/admin-guard';
-import { getSyncState } from '@/lib/campaigns';
+import { refreshStatus } from '@/lib/campaigns';
 import { configured, env } from '@/lib/env';
 import { describeCard } from '@/lib/integrations/metabase';
 import { totalsByIdentifier } from '@/lib/integrations/ga4';
@@ -47,7 +47,7 @@ function Row({ name, ok, text }: { name: string; ok: boolean; text: string }) {
 
 export default async function SetupPage() {
   await requireAdminPage();
-  const [mb, ga, sync, web] = await Promise.all([probeMetabase(), probeGa(), getSyncState(), webUsersSource()]);
+  const [mb, ga, sync, web] = await Promise.all([probeMetabase(), probeGa(), refreshStatus(), webUsersSource()]);
   const auto = autoSyncState();
   return (
     <div className="max-w-3xl space-y-6">
@@ -88,7 +88,7 @@ export default async function SetupPage() {
           <p className="muted">Off in this environment{env.autoSync ? ' (Linkrunner not connected)' : ''}. Numbers refresh when you press &quot;Refresh numbers&quot;, or have a scheduler call
             <span className="mono"> /api/sync/reporting?secret=…</span> every minute with SYNC_SECRET.</p>
         )}
-        <div className="muted">Last full refresh: {when(sync?.lastCompletedAt)} · cursor at page {sync?.nextPage ?? 1} of {sync?.pages ?? 1}{sync?.lastError ? ` · last error: ${sync.lastError}` : ''}</div>
+        <div className="muted">Active campaigns refreshed: {when(sync.hotAt)} · full pass: {when(sync.allAt)} · plan position {sync.position + 1}{sync.lastError ? ` · last error: ${sync.lastError}` : ''}</div>
       </div>
     </div>
   );

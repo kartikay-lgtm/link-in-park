@@ -173,6 +173,37 @@ export async function importAction(): Promise<ActionResult<svc.ImportResult>> {
   }
 }
 
+/* Put the hot pages (your active campaigns) first in the queue and take the
+   first one now if the minute is free. */
+export async function refreshMineAction(): Promise<ActionResult<svc.SyncResult>> {
+  try {
+    needLinkrunner();
+    const who = await actor();
+    await svc.prioritiseHot();
+    const r = await svc.syncReportingPage();
+    await logActivity(who, 'sync.refresh', `${who.name} refreshed their campaigns' numbers`, { details: r as unknown as Record<string, unknown> });
+    if (r.status === 'fetched') invalidateAnalyticsCache();
+    return { ok: true, data: r };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/* Fresh numbers for a single campaign - one request, a few seconds. */
+export async function refreshCampaignAction(displayId: string): Promise<ActionResult<{ waitedMs: number }>> {
+  try {
+    needLinkrunner();
+    await actor();
+    const r = await svc.refreshOneCampaign(displayId);
+    if (!r.ok) throw new Error(r.error);
+    invalidateAnalyticsCache();
+    revalidatePath('/', 'layout');
+    return { ok: true, data: { waitedMs: r.waitedMs } };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
 export async function syncReportingAction(): Promise<ActionResult<svc.SyncResult>> {
   try {
     needLinkrunner();

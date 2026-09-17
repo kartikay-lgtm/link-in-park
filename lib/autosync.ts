@@ -1,7 +1,8 @@
 /* Background refresh for a long-running server.
 
-   Every ~65s: one page of the Reporting API (Linkrunner allows one a minute;
-   syncReportingPage enforces that itself, so overlapping callers are safe).
+   Every ~65s: one numbers request, chosen by the plan in lib/campaigns.ts
+   (your active campaigns most minutes, everything else in the gaps).
+   Linkrunner allows one a minute; syncReportingPage enforces that itself.
    Every 10 min: re-import the campaign list, so links made in the Linkrunner
    dashboard show up here on their own.
 
@@ -34,7 +35,7 @@ export function startAutoSync(): void {
       const r = await syncReportingPage();
       if (r.status === 'fetched') {
         state.consecutive429 = 0;
-        state.lastResult = `page ${r.page}/${r.pages} (${r.matched} campaigns)${r.complete ? ' - pass complete' : ''}`;
+        state.lastResult = `${r.label || `page ${r.page}/${r.pages}`} (${r.matched} campaigns)${r.complete ? ' - full pass complete' : ''}`;
         invalidateAnalyticsCache();
       } else if (r.status === 'waiting') {
         if (r.reason === 'rate-limited') state.consecutive429++;
@@ -60,5 +61,5 @@ export function startAutoSync(): void {
   setInterval(reimport, IMPORT_EVERY_MS).unref();
   setTimeout(tick, 10_000);
   setInterval(tick, REPORTING_EVERY_MS).unref();
-  console.log('[autosync] background refresh on: reporting every 65s, import every 10 min');
+  console.log('[autosync] background refresh on: numbers every 65s (hot set first), import every 10 min');
 }

@@ -265,12 +265,12 @@ export async function importFromLinkrunner(): Promise<ImportResult> {
       const changed =
         existing.name !== c.name || existing.link !== c.link || existing.website !== c.website ||
         existing.androidWebRedirect !== c.androidWebRedirect || existing.iosWebRedirect !== c.iosWebRedirect ||
-        existing.active !== c.active || existing.deeplink !== c.deeplink;
+        existing.active !== c.active || existing.deeplink !== c.deeplink || (c.lrId !== null && existing.lrId !== c.lrId);
       if (changed || existing.lrDeletedAt) {
         await db
           .update(campaigns)
           .set({
-            name: c.name, link: c.link, deeplink: c.deeplink, website: c.website,
+            name: c.name, link: c.link, deeplink: c.deeplink, website: c.website, lrId: c.lrId ?? existing.lrId,
             androidWebRedirect: c.androidWebRedirect, iosWebRedirect: c.iosWebRedirect,
             active: c.active, updatedAt: now, lrDeletedAt: null,
           })
@@ -279,7 +279,7 @@ export async function importFromLinkrunner(): Promise<ImportResult> {
       }
     } else {
       inserts.push({
-        displayId, name: c.name, link: c.link, deeplink: c.deeplink, website: c.website,
+        displayId, name: c.name, link: c.link, deeplink: c.deeplink, website: c.website, lrId: c.lrId,
         androidWebRedirect: c.androidWebRedirect, iosWebRedirect: c.iosWebRedirect,
         active: c.active, origin: 'import',
         lrCreatedAt: c.createdAt ? new Date(c.createdAt) : null,
@@ -325,7 +325,7 @@ export async function importFromLinkrunner(): Promise<ImportResult> {
 export const REPORTING_MIN_INTERVAL_MS = 61_000;
 
 export type SyncResult =
-  | { status: 'fetched'; page: number; pages: number; matched: number; complete: boolean }
+  | { status: 'fetched'; page: number; pages: number; matched: number; complete: boolean; label?: string }
   | { status: 'waiting'; retryInSeconds: number; reason: 'local-limit' | 'rate-limited' }
   | { status: 'error'; message: string; retryInSeconds: number };
 
@@ -333,67 +333,166 @@ export type SyncResult =
    you like - it refuses to hit Linkrunner more than once a minute, which is
    the limit on that endpoint. Pages advance across calls; when the last page
    lands the cursor resets, so repeated calls walk the whole account forever. */
+/* ---- the refresh plan ---------------------------------------------------------
+   Linkrunner allows one numbers request a minute, 100 campaigns each. Rather
+   than walk all pages in order (13+ minutes for everything), each cycle
+   spends most slots on the campaigns that actually move - the most-clicked
+   and the newest - and the rest on a slow walk of everything else:
+
+     clicks p1 · clicks p2 · clicks p3 · clicks p4 · newest p1 · slow · slow
+
+   Measured on this account: every campaign whose numbers changed in the last
+   three days was inside "top 400 by clicks or newest 100". So the hot set
+   refreshes every ~7 minutes and a full pass still completes every ~45. */
+const HOT_CLICK_PAGES = 4;
+const HOT_NEW_PAGES = 1;
+const SLOW_PER_CYCLE = 2;
+type Step = { kind: 'clicks' | 'new' | 'slow'; page: number };
+const PLAN: Step[] = [
+  ...Array.from({ length: HOT_CLICK_PAGES }, (_, i) => ({ kind: 'clicks' as const, page: i + 1 })),
+  ...Array.from({ length: HOT_NEW_PAGES }, (_, i) => ({ kind: 'new' as const, page: i + 1 })),
+  ...Array.from({ length: SLOW_PER_CYCLE }, () => ({ kind: 'slow' as const, page: 0 })),
+];
+const HOT_STEPS = HOT_CLICK_PAGES + HOT_NEW_PAGES;
+
+async function stateRow(key: string) {
+  const db = await getDb();
+  let [row] = await db.select().from(syncState).where(eq(syncState.key, key));
+  if (!row) [row] = await db.insert(syncState).values({ key }).returning();
+  return row;
+}
+
+/* Applies one page of numbers to the campaigns it names. A snapshot is
+   written only when something changed (or the last one is over six hours
+   old), so frequent refreshes do not flood the history table. */
+async function applyReporting(rows: lr.ReportingRow[], now: Date): Promise<number> {
+  const db = await getDb();
+  const local = await db.select({ displayId: campaigns.displayId, clicks: campaigns.clicks, installs: campaigns.installs, signups: campaigns.signups, statsAt: campaigns.statsAt }).from(campaigns);
+  const byCode = new Map(local.map((c) => [normaliseCode(c.displayId), c]));
+  let matched = 0;
+  const snaps: Array<typeof reportingSnapshots.$inferInsert> = [];
+  for (const row of rows) {
+    const cur = byCode.get(normaliseCode(row.displayId));
+    if (!cur) continue; // not imported yet; the next import picks it up
+    matched++;
+    const changed = cur.clicks !== row.clicks || cur.installs !== row.installs || cur.signups !== row.signups;
+    const stale = !cur.statsAt || now.getTime() - cur.statsAt.getTime() > 6 * 3600_000;
+    await db.update(campaigns).set({ clicks: row.clicks, installs: row.installs, signups: row.signups, statsAt: now, active: row.active }).where(eq(campaigns.displayId, cur.displayId));
+    if (changed || stale) snaps.push({ campaignDisplayId: cur.displayId, clicks: row.clicks, installs: row.installs, signups: row.signups, fetchedAt: now });
+  }
+  if (snaps.length) await db.insert(reportingSnapshots).values(snaps);
+  return matched;
+}
+
+/* Waits for the one-a-minute window if needed (up to `maxWaitMs`), then
+   claims it. Returns null when the window is not free in time. */
+async function claimSlot(maxWaitMs: number): Promise<Date | null> {
+  const db = await getDb();
+  const deadline = Date.now() + maxWaitMs;
+  for (;;) {
+    const st = await stateRow('reporting');
+    const since = st.lastRequestAt ? Date.now() - st.lastRequestAt.getTime() : Infinity;
+    if (since >= REPORTING_MIN_INTERVAL_MS) {
+      const now = new Date();
+      await db.update(syncState).set({ lastRequestAt: now }).where(eq(syncState.key, 'reporting'));
+      return now;
+    }
+    const wait = REPORTING_MIN_INTERVAL_MS - since;
+    if (Date.now() + wait > deadline) return null;
+    await new Promise((r) => setTimeout(r, Math.min(wait, 5_000) + 250));
+  }
+}
+
+async function noteRateLimit(e: unknown, key: string): Promise<SyncResult> {
+  const db = await getDb();
+  const err = e as lr.LinkrunnerError;
+  const retry = err.retryAfter ?? 60;
+  // The key's one-a-minute budget is shared with anything else using it. A
+  // 429 is not a failure, just "not our turn".
+  if (err.status === 429) {
+    await db.update(syncState).set({ lastError: '' }).where(eq(syncState.key, key));
+    return { status: 'waiting', retryInSeconds: retry, reason: 'rate-limited' };
+  }
+  await db.update(syncState).set({ lastError: err.message || String(e) }).where(eq(syncState.key, key));
+  return { status: 'error', message: err.message || String(e), retryInSeconds: retry };
+}
+
+/* One request, chosen by the plan. Called every minute by the background
+   loop; safe to call more often (it just waits). */
 export async function syncReportingPage(): Promise<SyncResult> {
   const db = await getDb();
-  let [state] = await db.select().from(syncState).where(eq(syncState.key, 'reporting'));
-  if (!state) {
-    [state] = await db.insert(syncState).values({ key: 'reporting' }).returning();
-  }
+  const plan = await stateRow('plan');   // nextPage = position in PLAN
+  const slow = await stateRow('slow');   // nextPage / pages / lastCompletedAt = the full walk
+  const hot = await stateRow('hot');     // lastCompletedAt = hot set last finished
 
-  const since = state.lastRequestAt ? Date.now() - state.lastRequestAt.getTime() : Infinity;
+  const gate = await stateRow('reporting');
+  const since = gate.lastRequestAt ? Date.now() - gate.lastRequestAt.getTime() : Infinity;
   if (since < REPORTING_MIN_INTERVAL_MS) {
     return { status: 'waiting', retryInSeconds: Math.ceil((REPORTING_MIN_INTERVAL_MS - since) / 1000), reason: 'local-limit' };
   }
-
   const now = new Date();
   await db.update(syncState).set({ lastRequestAt: now }).where(eq(syncState.key, 'reporting'));
 
+  const pos = ((plan.nextPage - 1) % PLAN.length + PLAN.length) % PLAN.length;
+  const step = PLAN[pos];
+  const query: lr.ReportingQuery =
+    step.kind === 'clicks' ? { page: step.page, sortField: 'clicks', sortOrder: 'descending' }
+      : step.kind === 'new' ? { page: step.page, sortField: 'created_at', sortOrder: 'descending' }
+      : { page: slow.nextPage, sortField: 'installs', sortOrder: 'descending' };
+
   let page: lr.ReportingPage;
   try {
-    page = await lr.fetchReportingPage(state.nextPage);
+    page = await lr.fetchReportingPage(query);
+  } catch (e) {
+    return noteRateLimit(e, 'reporting');
+  }
+  const matched = await applyReporting(page.rows, now);
+
+  let complete = false;
+  if (step.kind === 'slow') {
+    complete = page.page >= page.pages;
+    await db.update(syncState).set({ pages: page.pages, nextPage: complete ? 1 : page.page + 1, lastCompletedAt: complete ? now : slow.lastCompletedAt, lastError: '' }).where(eq(syncState.key, 'slow'));
+  } else if (pos === HOT_STEPS - 1) {
+    await db.update(syncState).set({ lastCompletedAt: now, lastError: '' }).where(eq(syncState.key, 'hot'));
+  }
+  await db.update(syncState).set({ nextPage: pos + 2, pages: PLAN.length, lastError: '' }).where(eq(syncState.key, 'plan'));
+  // Keep the legacy row's completion time for anything still reading it.
+  if (complete) await db.update(syncState).set({ lastCompletedAt: now }).where(eq(syncState.key, 'reporting'));
+
+  const label = step.kind === 'slow' ? `all campaigns p${page.page}/${page.pages}` : step.kind === 'clicks' ? `most-clicked p${step.page}` : 'newest';
+  return { status: 'fetched', page: step.kind === 'slow' ? page.page : pos + 1, pages: step.kind === 'slow' ? page.pages : HOT_STEPS, matched, complete, label } as SyncResult;
+}
+
+/* Start the hot cycle from the top on the next slots. */
+export async function prioritiseHot(): Promise<void> {
+  const db = await getDb();
+  await stateRow('plan');
+  await db.update(syncState).set({ nextPage: 1 }).where(eq(syncState.key, 'plan'));
+}
+
+/* Where the refresh stands, for the header. */
+export async function refreshStatus(): Promise<{ hotAt: Date | null; allAt: Date | null; position: number; hotSteps: number; lastRequestAt: Date | null; lastError: string }> {
+  const [plan, slow, hot, gate] = await Promise.all([stateRow('plan'), stateRow('slow'), stateRow('hot'), stateRow('reporting')]);
+  const pos = ((plan.nextPage - 1) % PLAN.length + PLAN.length) % PLAN.length;
+  return { hotAt: hot.lastCompletedAt, allAt: slow.lastCompletedAt || gate.lastCompletedAt, position: pos, hotSteps: HOT_STEPS, lastRequestAt: gate.lastRequestAt, lastError: gate.lastError || slow.lastError };
+}
+
+/* Fresh numbers for one campaign, now: a single request aimed with
+   `search`, taking the next free minute slot (waits up to a minute). */
+export async function refreshOneCampaign(displayId: string): Promise<{ ok: true; waitedMs: number } | { ok: false; error: string }> {
+  const t0 = Date.now();
+  const now = await claimSlot(75_000);
+  if (!now) return { ok: false, error: 'Linkrunner is busy - try again in a minute' };
+  try {
+    const page = await lr.fetchReportingPage({ search: displayId, page: 1, limit: 100 });
+    const row = page.rows.find((r) => normaliseCode(r.displayId) === normaliseCode(displayId));
+    if (!row) return { ok: false, error: 'Linkrunner did not return this campaign' };
+    await applyReporting([row], now);
+    return { ok: true, waitedMs: Date.now() - t0 };
   } catch (e) {
     const err = e as lr.LinkrunnerError;
-    const retry = err.retryAfter ?? 60;
-    // The key's one-a-minute budget is shared with anything else using it
-    // (the old referral-sheet Apps Script, for one). A 429 is not a failure,
-    // just "not our turn" - the cursor stays put and we try again later.
-    if (err.status === 429) {
-      await db.update(syncState).set({ lastError: '' }).where(eq(syncState.key, 'reporting'));
-      return { status: 'waiting', retryInSeconds: retry, reason: 'rate-limited' };
-    }
-    await db.update(syncState).set({ lastError: err.message || String(e) }).where(eq(syncState.key, 'reporting'));
-    return { status: 'error', message: err.message || String(e), retryInSeconds: retry };
+    return { ok: false, error: err.status === 429 ? 'Linkrunner is busy - try again in a minute' : err.message || String(e) };
   }
-
-  const local = await db.select({ displayId: campaigns.displayId }).from(campaigns);
-  const canonical = new Map(local.map((c) => [normaliseCode(c.displayId), c.displayId]));
-
-  let matched = 0;
-  const snaps: Array<typeof reportingSnapshots.$inferInsert> = [];
-  for (const row of page.rows) {
-    const displayId = canonical.get(normaliseCode(row.displayId));
-    if (!displayId) continue; // not imported yet; the next import picks it up
-    matched++;
-    await db
-      .update(campaigns)
-      .set({ clicks: row.clicks, installs: row.installs, signups: row.signups, statsAt: now, active: row.active })
-      .where(eq(campaigns.displayId, displayId));
-    snaps.push({ campaignDisplayId: displayId, clicks: row.clicks, installs: row.installs, signups: row.signups, fetchedAt: now });
-  }
-  if (snaps.length) await db.insert(reportingSnapshots).values(snaps);
-
-  const complete = page.page >= page.pages;
-  await db
-    .update(syncState)
-    .set({
-      pages: page.pages,
-      nextPage: complete ? 1 : page.page + 1,
-      lastCompletedAt: complete ? now : state.lastCompletedAt,
-      lastError: '',
-    })
-    .where(eq(syncState.key, 'reporting'));
-
-  return { status: 'fetched', page: page.page, pages: page.pages, matched, complete };
 }
 
 /* Identifiers currently live across all campaigns - what GA4 and Metabase

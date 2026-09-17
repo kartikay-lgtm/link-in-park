@@ -1,16 +1,18 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
-import { importAction, refreshAnalyticsAction, syncReportingAction } from '@/app/actions';
+import { importAction, refreshMineAction, syncReportingAction } from '@/app/actions';
 import Icon from './Icon';
 
 type Msg = { kind: 'ok' | 'warn' | 'bad' | 'info'; text: string };
 
 /* Import = pull the campaign list from Linkrunner (fast, no rate limit).
-   Refresh numbers = walk the Reporting API page by page. Linkrunner allows
-   one page a minute, so with ~1,100 campaigns a full pass is ~12 minutes;
-   this keeps going on its own while the tab is open and shows progress. */
+   Refresh mine = put your active campaigns at the front of the numbers
+   queue and run it: five requests, one a minute. The background loop does
+   this on its own every few minutes; the button just does it now. */
 export default function SyncButtons({ disabled }: { disabled?: boolean }) {
+  const router = useRouter();
   const [msg, setMsg] = useState<Msg | null>(null);
   const [running, setRunning] = useState(false);
   const [pending, start] = useTransition();
@@ -24,6 +26,7 @@ export default function SyncButtons({ disabled }: { disabled?: boolean }) {
       const r = await importAction();
       if (!r.ok) return setMsg({ kind: 'bad', text: r.error });
       setMsg({ kind: 'ok', text: `Imported ${r.data.total} campaigns (${r.data.added} new, ${r.data.updated} updated${r.data.removed ? `, ${r.data.removed} deleted in Linkrunner` : ''}).` });
+      router.refresh();
     });
   }
 
@@ -33,35 +36,27 @@ export default function SyncButtons({ disabled }: { disabled?: boolean }) {
     setRunning(false);
   }
 
-  function step(auto: boolean) {
+  function step(first: boolean) {
     start(async () => {
-      const r = await syncReportingAction();
+      const r = first ? await refreshMineAction() : await syncReportingAction();
       if (!r.ok) { stop(); return setMsg({ kind: 'bad', text: r.error }); }
       const d = r.data;
       if (d.status === 'error') { stop(); return setMsg({ kind: 'bad', text: `${d.message} (retry in ${d.retryInSeconds}s)` }); }
       if (d.status === 'waiting') {
-        const why = d.reason === 'rate-limited'
-          ? `Linkrunner says the key is busy (something else is using its one-call-a-minute budget) - retrying in ${d.retryInSeconds}s`
-          : `Linkrunner allows one page a minute - next page in ${d.retryInSeconds}s`;
-        if (!auto) return setMsg({ kind: 'warn', text: why + '.' });
-        setMsg({ kind: 'info', text: why + '…' });
-        timer.current = setTimeout(() => step(true), (d.retryInSeconds + 2) * 1000);
+        setMsg({ kind: 'info', text: d.reason === 'rate-limited' ? `Linkrunner's minute is taken - retrying in ${d.retryInSeconds}s…` : `Next request in ${d.retryInSeconds}s…` });
+        timer.current = setTimeout(() => step(false), (d.retryInSeconds + 2) * 1000);
         return;
       }
-      await refreshAnalyticsAction();
-      if (d.complete) {
+      router.refresh();
+      // The hot set is the first five steps of the plan; stop once it is done.
+      if (d.label && !d.label.startsWith('all campaigns') && d.page >= d.pages) {
         stop();
-        return setMsg({ kind: 'ok', text: `All numbers refreshed (${d.pages} page${d.pages === 1 ? '' : 's'}).` });
+        return setMsg({ kind: 'ok', text: 'Your campaigns are up to date.' });
       }
-      const left = d.pages - d.page;
-      setMsg({ kind: 'info', text: `Page ${d.page} of ${d.pages} done - about ${left} min left. You can keep using the console.` });
-      timer.current = setTimeout(() => step(true), 61_000);
+      if (d.label && d.label.startsWith('all campaigns')) { stop(); return setMsg({ kind: 'ok', text: 'Your campaigns are up to date.' }); }
+      setMsg({ kind: 'info', text: `${d.label || 'page'} done (${d.page} of ${d.pages}) - next in a minute…` });
+      timer.current = setTimeout(() => step(false), 61_000);
     });
-  }
-
-  function runRefresh() {
-    setRunning(true);
-    step(true);
   }
 
   const badge = msg ? (msg.kind === 'ok' ? 'badge-ok' : msg.kind === 'warn' ? 'badge-warn' : msg.kind === 'bad' ? 'badge-bad' : 'badge-accent') : '';
@@ -73,7 +68,7 @@ export default function SyncButtons({ disabled }: { disabled?: boolean }) {
       {running ? (
         <button className="btn btn-sm btn-active" onClick={stop}><Icon name="refresh" size={14} />Refreshing… stop</button>
       ) : (
-        <button className="btn btn-sm" onClick={runRefresh} disabled={disabled || pending} title="Fetch clicks / installs / sign-ups from Linkrunner"><Icon name="refresh" size={14} />Refresh numbers</button>
+        <button className="btn btn-sm" onClick={() => { setRunning(true); step(true); }} disabled={disabled || pending} title="Refresh your active campaigns now (about 5 minutes)"><Icon name="refresh" size={14} />Refresh mine now</button>
       )}
     </div>
   );

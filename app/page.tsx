@@ -4,17 +4,18 @@ import CampaignTable, { type ListRow } from '@/components/CampaignTable';
 import SyncButtons from '@/components/SyncButtons';
 import { ago } from '@/components/ui';
 import { gaTotals, webUsersByCampaign } from '@/lib/analytics';
-import { getSyncState, listCampaignRows } from '@/lib/campaigns';
+import { listCampaignRows, refreshStatus } from '@/lib/campaigns';
 import { configured } from '@/lib/env';
 import { campaignKind } from '@/lib/classify';
 import { listFolders } from '@/lib/folders';
+import { liveCounts } from '@/lib/live';
 import { dayKey } from '@/lib/signups';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 export default async function CampaignsPage() {
-  const [rows, sync, folderRows] = await Promise.all([listCampaignRows(), getSyncState(), listFolders()]);
+  const [rows, sync, folderRows, live] = await Promise.all([listCampaignRows(), refreshStatus(), listFolders(), liveCounts()]);
   const folders = folderRows.map((f) => ({ id: f.id, name: f.name, parentId: f.parentId, path: f.path, depth: f.depth }));
   const ids = Array.from(new Set(rows.flatMap((r) => r.currentRedirects.map((x) => x.identifier)).filter(Boolean)));
   const [ga, web] = await Promise.all([
@@ -35,6 +36,8 @@ export default async function CampaignsPage() {
       created,
       createdDay: dayKey(created),
       clicks: r.clicks, installs: r.installs, signups: r.signups,
+      liveInstalls: live.get(r.displayId)?.installs || 0,
+      liveSignups: live.get(r.displayId)?.signups || 0,
       landings: ga.configured && identifier ? (ga.data.get(identifier.toLowerCase())?.sessions ?? 0) : null,
       users: web.configured ? (web.byCampaign.get(r.displayId)?.length ?? 0) : null,
       active: r.active,
@@ -49,9 +52,9 @@ export default async function CampaignsPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-[22px] font-semibold">Campaigns</h1>
         <div className="flex items-center gap-3">
-          <span className="faint text-xs">
-            {sync?.lastCompletedAt ? `refreshed ${ago(sync.lastCompletedAt)}` : sync?.lastRequestAt ? `refreshing… (${ago(sync.lastRequestAt)})` : 'not refreshed yet'}
-            {sync?.lastError ? <span className="badge badge-bad ml-2" title={sync.lastError}>refresh failed</span> : null}
+          <span className="faint text-xs" title="Your active campaigns refresh every few minutes; everything else on a slower walk">
+            {sync.hotAt ? `yours ${ago(sync.hotAt)}` : 'yours: not yet'} · {sync.allAt ? `all ${ago(sync.allAt)}` : 'all: not yet'}
+            {sync.lastError ? <span className="badge badge-bad ml-2" title={sync.lastError}>refresh failed</span> : null}
           </span>
           <SyncButtons disabled={!configured.linkrunner} />
         </div>
