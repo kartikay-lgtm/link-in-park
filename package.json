@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "copy-db": "tsx scripts/copy-db.mts"
+    "copy-db": "tsx scripts/copy-db.mts",
+    "pull-db": "tsx scripts/pull-db.mts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.8",
