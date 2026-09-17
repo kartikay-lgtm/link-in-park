@@ -7,6 +7,9 @@ import { configured } from "@/lib/env";
 import { currentUser, gated } from "@/lib/users";
 import { logoutAction } from "./actions";
 
+// Every page depends on who is signed in; nothing here is prerendered.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Link-in Park",
   description: "Create and track Linkrunner campaign links",

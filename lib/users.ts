@@ -72,9 +72,12 @@ export async function sessionCookieFor(u: User): Promise<string> {
 /* Who is making this request? null when signed out, disabled, or the
    password changed since the cookie was issued. */
 export async function currentUser(): Promise<SafeUser | null> {
-  if (!(await gated())) return null;
+  // Read the cookie before anything else: it marks the render as
+  // per-request, so a build-time prerender never reaches the database.
   const jar = await cookies();
-  const claims = await verifySession(sessionSecret(), jar.get(SESSION_COOKIE)?.value);
+  const raw = jar.get(SESSION_COOKIE)?.value;
+  if (!(await gated())) return null;
+  const claims = await verifySession(sessionSecret(), raw);
   if (!claims) return null;
   const db = await getDb();
   const [u] = await db.select().from(users).where(and(eq(users.id, claims.userId), eq(users.active, true)));
