@@ -1,9 +1,10 @@
-/* A single shared password, set as APP_PASSWORD. Unset = no gate (fine on a
-   laptop, never on the internet - the console can edit live campaigns).
+/* Sessions: a signed cookie naming the user, their session version and an
+   expiry. Web Crypto only, so proxy.ts can verify it without touching the
+   database; the database check (active? password changed?) happens in
+   currentUser() on the Node side. */
 
-   Web Crypto only, so this also runs in proxy.ts on the edge runtime. */
-
-export const SESSION_COOKIE = 'lc_session';
+export const SESSION_COOKIE = 'lip_session';
+export const SESSION_DAYS = 30;
 
 async function hmacHex(key: string, message: string): Promise<string> {
   const enc = new TextEncoder();
@@ -12,18 +13,26 @@ async function hmacHex(key: string, message: string): Promise<string> {
   return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-/* The cookie value is derived from the password, so changing the password
-   logs every browser out. */
-export function sessionTokenFor(password: string): Promise<string> {
-  return hmacHex(password, 'link-console-session-v1');
+export type SessionClaims = { userId: string; version: number; exp: number };
+
+export async function signSession(secret: string, claims: SessionClaims): Promise<string> {
+  const payload = `${claims.userId}.${claims.version}.${claims.exp}`;
+  return `${payload}.${await hmacHex(secret, payload)}`;
 }
 
-export async function isValidSession(password: string, cookieValue: string | undefined): Promise<boolean> {
-  if (!password) return true;
-  if (!cookieValue) return false;
-  const expected = await sessionTokenFor(password);
-  if (expected.length !== cookieValue.length) return false;
+/* Returns the claims when the signature is right and the session has not
+   expired; null otherwise. */
+export async function verifySession(secret: string, cookieValue: string | undefined): Promise<SessionClaims | null> {
+  if (!secret || !cookieValue) return null;
+  const parts = cookieValue.split('.');
+  if (parts.length !== 4) return null;
+  const [userId, version, exp, sig] = parts;
+  const expected = await hmacHex(secret, `${userId}.${version}.${exp}`);
+  if (expected.length !== sig.length) return null;
   let diff = 0;
-  for (let i = 0; i < expected.length; i++) diff |= expected.charCodeAt(i) ^ cookieValue.charCodeAt(i);
-  return diff === 0;
+  for (let i = 0; i < expected.length; i++) diff |= expected.charCodeAt(i) ^ sig.charCodeAt(i);
+  if (diff !== 0) return null;
+  const expNum = Number(exp);
+  if (!Number.isFinite(expNum) || expNum * 1000 < Date.now()) return null;
+  return { userId, version: Number(version), exp: expNum };
 }

@@ -115,3 +115,40 @@ export const webUserUploads = pgTable('web_user_uploads', {
   updated: integer('updated').notNull(),
   content: text('content'),            // the CSV as uploaded, for audit
 });
+
+/* ---- users & activity ---------------------------------------------------------
+   Every person has their own login. Super admins manage users and read the
+   activity log; members create and manage links. */
+export const users = pgTable('users', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  email: text('email').notNull().unique(),          // lower-cased login
+  name: text('name').notNull(),
+  passwordHash: text('password_hash').notNull(),
+  role: text('role').notNull().default('member'),   // 'admin' | 'member'
+  active: boolean('active').notNull().default(true),
+  sessionVersion: integer('session_version').notNull().default(1), // bump to log every browser out
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  createdBy: uuid('created_by'),
+  lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
+});
+
+/* One row per thing a person did: link created, redirect changed, folder
+   moved, CSV uploaded, login… `details` carries the specifics (link,
+   redirect URL, identifier, counts). */
+export const activityLog = pgTable(
+  'activity_log',
+  {
+    id: serial('id').primaryKey(),
+    at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+    userId: uuid('user_id'),
+    userName: text('user_name').notNull(),
+    action: text('action').notNull(),                 // e.g. link.create, redirect.replace, auth.login
+    target: text('target'),                           // campaign display id, folder id, email…
+    summary: text('summary').notNull(),               // one readable line
+    details: jsonb('details').$type<Record<string, unknown>>(),
+  },
+  (t) => [index('activity_log_at_idx').on(t.at), index('activity_log_user_idx').on(t.userId)],
+);
+
+export type User = typeof users.$inferSelect;
+export type ActivityEntry = typeof activityLog.$inferSelect;

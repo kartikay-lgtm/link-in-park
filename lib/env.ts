@@ -50,7 +50,10 @@ export const env = {
   databaseUrl: str('DATABASE_URL'),
   // Where the embedded database lives when DATABASE_URL is unset.
   dataDir: str('DATA_DIR'),
-  appPassword: str('APP_PASSWORD'),
+  appPassword: str('APP_PASSWORD'),   // bootstrap: the first super admin's password
+  adminEmail: str('ADMIN_EMAIL') || 'kartikay@grapevine.in',
+  adminName: str('ADMIN_NAME') || 'Kartikay',
+  sessionSecret: str('SESSION_SECRET'),
   // Shared secret for the cron/sync endpoint.
   syncSecret: str('SYNC_SECRET'),
   // Background refresh inside a long-running server (local / one-box host).

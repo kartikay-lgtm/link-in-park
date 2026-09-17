@@ -1,5 +1,6 @@
 import { autoSyncState } from '@/lib/autosync';
 import { webUsersSource } from '@/lib/webusers';
+import { requireAdminPage } from '@/lib/admin-guard';
 import { getSyncState } from '@/lib/campaigns';
 import { configured, env } from '@/lib/env';
 import { describeCard } from '@/lib/integrations/metabase';
@@ -45,6 +46,7 @@ function Row({ name, ok, text }: { name: string; ok: boolean; text: string }) {
 }
 
 export default async function SetupPage() {
+  await requireAdminPage();
   const [mb, ga, sync, web] = await Promise.all([probeMetabase(), probeGa(), getSyncState(), webUsersSource()]);
   const auto = autoSyncState();
   return (
