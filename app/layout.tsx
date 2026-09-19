@@ -27,7 +27,7 @@ export default async function RootLayout({ children, modal }: { children: React.
     <html lang="en" className={montserrat.variable}>
       <body>
         <Backdrop />
-        <div className="mx-auto max-w-[1320px] px-4 py-5 sm:px-6 sm:py-7">
+        <div className="mx-auto px-3 py-4 sm:px-5 sm:py-5" style={{ maxWidth: 1800 }}>
           <div className="shell">
             <Header isAdmin={isAdmin} userName={user?.name || null} right={<>
               {!configured.linkrunner && isAdmin && <Link href="/setup" className="badge badge-warn">Linkrunner not connected</Link>}
