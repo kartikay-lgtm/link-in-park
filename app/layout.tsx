@@ -14,8 +14,11 @@ export const dynamic = "force-dynamic";
 const montserrat = Montserrat({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-sans", display: "swap" });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.PUBLIC_URL || "https://link-in-park-production.up.railway.app"),
   title: "Link-in Park",
-  description: "Create and track Linkrunner campaign links",
+  description: "Eat. Sleep. Growth. Repeat.",
+  openGraph: { title: "Link-in Park", description: "Eat. Sleep. Growth. Repeat.", siteName: "Link-in Park", type: "website" },
+  twitter: { card: "summary_large_image", title: "Link-in Park", description: "Eat. Sleep. Growth. Repeat." },
 };
 
 export default async function RootLayout({ children, modal }: { children: React.ReactNode; modal: React.ReactNode }) {

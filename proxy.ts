@@ -10,7 +10,11 @@ export async function proxy(request: NextRequest) {
   if (!secret) return NextResponse.next();
 
   const { pathname } = request.nextUrl;
-  if (pathname === '/login' || pathname === '/api/login' || pathname.startsWith('/api/sync') || pathname.startsWith('/api/webhooks/') || pathname === '/logo.png' || pathname === '/icon.png') return NextResponse.next();
+  // Public: sign-in, the webhook and sync endpoints, and everything a link
+  // preview needs (the share image, icons). The redirect below keeps the
+  // page's meta tags reachable too: crawlers land on /login, which carries
+  // the same title, description and image.
+  if (pathname === '/login' || pathname === '/api/login' || pathname.startsWith('/api/sync') || pathname.startsWith('/api/webhooks/') || pathname === '/logo.png' || pathname === '/icon.png' || pathname.startsWith('/opengraph-image') || pathname.startsWith('/twitter-image')) return NextResponse.next();
 
   const claims = await verifySession(secret, request.cookies.get(SESSION_COOKIE)?.value);
   if (claims) return NextResponse.next();
