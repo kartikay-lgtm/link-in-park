@@ -523,7 +523,8 @@ export async function totalsAsOf(days: number, displayIds?: string[]): Promise<{
   const oldestAt = oldest?.at ? new Date(oldest.at) : null;
   const available = oldestAt ? Math.floor((Date.now() - oldestAt.getTime()) / 86400_000) : 0;
   const useDays = Math.max(1, Math.min(days, available));
-  const cutoff = new Date(Date.now() - useDays * 86400_000);
+  // Passed as an ISO string: the Postgres driver rejects a raw Date here.
+  const cutoff = new Date(Date.now() - useDays * 86400_000).toISOString();
   const empty = { clicks: 0, installs: 0, signups: 0, byCampaign: new Map<string, { clicks: number; installs: number; signups: number }>(), days: useDays };
   if (available < 1) return empty;
   // Latest snapshot at or before the cutoff, per campaign. Done with the
@@ -532,7 +533,7 @@ export async function totalsAsOf(days: number, displayIds?: string[]): Promise<{
   const latest = db
     .select({ id: reportingSnapshots.campaignDisplayId, at: sql<Date>`max(${reportingSnapshots.fetchedAt})`.as('at') })
     .from(reportingSnapshots)
-    .where(displayIds ? and(sql`${reportingSnapshots.fetchedAt} <= ${cutoff}`, inArray(reportingSnapshots.campaignDisplayId, displayIds)) : sql`${reportingSnapshots.fetchedAt} <= ${cutoff}`)
+    .where(displayIds ? and(sql`${reportingSnapshots.fetchedAt} <= ${cutoff}::timestamptz`, inArray(reportingSnapshots.campaignDisplayId, displayIds)) : sql`${reportingSnapshots.fetchedAt} <= ${cutoff}::timestamptz`)
     .groupBy(reportingSnapshots.campaignDisplayId)
     .as('latest');
   const rows = await db
