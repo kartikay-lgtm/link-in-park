@@ -36,6 +36,7 @@ const tables = [
   ['folders', schema.folders], ['campaigns', schema.campaigns], ['redirects', schema.redirects],
   ['reporting_snapshots', schema.reportingSnapshots], ['sync_state', schema.syncState],
   ['web_users_raw', schema.webUsersRaw], ['web_user_uploads', schema.webUserUploads],
+  ['users', schema.users], ['activity_log', schema.activityLog], ['lr_events', schema.lrEvents],
 ] as const;
 for (const [name, t] of tables) {
   const rows = await src.select().from(t as never) as Record<string, unknown>[];

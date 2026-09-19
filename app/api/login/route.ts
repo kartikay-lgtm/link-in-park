@@ -11,12 +11,12 @@ function seeOther(location: string): NextResponse {
 
 export async function POST(request: NextRequest) {
   const form = await request.formData();
-  const email = String(form.get('email') || '').trim().toLowerCase();
+  const login = String(form.get('login') || form.get('email') || '').trim();
   const password = String(form.get('password') || '');
-  const user = email && password ? await authenticate(email, password) : null;
+  const user = login && password ? await authenticate(login, password) : null;
   if (!user) {
-    await logActivity({ id: null, name: email || '(blank)' }, 'auth.login_failed', `Failed sign-in for ${email || '(no email)'}`, { target: email });
-    return seeOther('/login?error=1' + (email ? `&email=${encodeURIComponent(email)}` : ''));
+    await logActivity({ id: null, name: login || '(blank)' }, 'auth.login_failed', `Failed sign-in for ${login || '(no name)'}`, { target: login.toLowerCase() });
+    return seeOther('/login?error=1' + (login ? `&login=${encodeURIComponent(login)}` : ''));
   }
   await logActivity({ id: user.id, name: user.name }, 'auth.login', `${user.name} signed in`, { target: user.email });
   const res = seeOther('/');

@@ -29,7 +29,7 @@ export default function UsersAdmin({ users, meId }: { users: UserRow[]; meId: st
     start(async () => {
       const r = await createUserAction(form);
       if (!r.ok) return setError(r.error);
-      setReveal({ id: r.data.id, email: form.email.trim().toLowerCase(), password: r.data.password });
+      setReveal({ id: r.data.id, email: form.name.trim(), password: r.data.password });
       setForm({ name: '', email: '', role: 'member', password: '' });
       setCreating(false);
     });
@@ -39,7 +39,7 @@ export default function UsersAdmin({ users, meId }: { users: UserRow[]; meId: st
     start(async () => {
       const r = await setUserPasswordAction(u.id, resetPw || undefined);
       if (!r.ok) return setError(r.error);
-      setReveal({ id: u.id, email: u.email, password: r.data.password });
+      setReveal({ id: u.id, email: u.name, password: r.data.password });
       setResetFor(null); setResetPw('');
     });
   }
@@ -58,7 +58,7 @@ export default function UsersAdmin({ users, meId }: { users: UserRow[]; meId: st
       {reveal && (
         <div className="alert alert-ok flex flex-wrap items-center gap-3">
           <span>Password for <b>{reveal.email}</b>: <span className="mono font-semibold">{reveal.password}</span></span>
-          <CopyButton text={`Link-in Park\nhttps://link-in-park-production.up.railway.app\nEmail: ${reveal.email}\nPassword: ${reveal.password}`} label="Copy sign-in details" />
+          <CopyButton text={`Link-in Park\nhttps://link-in-park-production.up.railway.app\nName: ${reveal.email}\nPassword: ${reveal.password}`} label="Copy sign-in details" />
           <span className="text-[12.5px] opacity-80">Shown once — send it to them now.</span>
           <button type="button" className="btn btn-icon ml-auto" onClick={() => setReveal(null)} aria-label="Dismiss"><Icon name="x" size={14} /></button>
         </div>
@@ -73,7 +73,7 @@ export default function UsersAdmin({ users, meId }: { users: UserRow[]; meId: st
         <div className="panel p-5 space-y-4">
           <div className="grid sm:grid-cols-2 gap-4">
             <div><label className="label" htmlFor="u-name">Name</label><input id="u-name" className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} autoFocus /></div>
-            <div><label className="label" htmlFor="u-email">Email</label><input id="u-email" type="email" className="input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="name@grapevine.in" /></div>
+            <div><label className="label" htmlFor="u-email">Email <span className="faint font-normal">optional</span></label><input id="u-email" type="email" className="input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="name@grapevine.in" /></div>
             <div>
               <label className="label" htmlFor="u-role">Role</label>
               <select id="u-role" className="select w-full" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as 'admin' | 'member' })}>
@@ -84,7 +84,7 @@ export default function UsersAdmin({ users, meId }: { users: UserRow[]; meId: st
             <div><label className="label" htmlFor="u-pw">Password <span className="faint font-normal">leave blank to generate one</span></label><input id="u-pw" className="input mono" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} autoComplete="new-password" /></div>
           </div>
           <div className="flex gap-2">
-            <button type="button" className="btn btn-primary" onClick={create} disabled={pending || !form.name.trim() || !form.email.trim()}>{pending ? 'Creating…' : 'Create user'}</button>
+            <button type="button" className="btn btn-primary" onClick={create} disabled={pending || !form.name.trim()}>{pending ? 'Creating…' : 'Create user'}</button>
             <button type="button" className="btn" onClick={() => { setCreating(false); setError(''); }}>Cancel</button>
           </div>
         </div>

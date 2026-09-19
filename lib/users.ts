@@ -32,7 +32,7 @@ export async function ensureAdmin(): Promise<void> {
   const db = await getDb();
   const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(users);
   if (Number(n) > 0 || !env.appPassword) return;
-  await db.insert(users).values({ email: env.adminEmail.toLowerCase(), name: env.adminName, passwordHash: hashPassword(env.appPassword), role: 'admin' }).onConflictDoNothing();
+  await db.insert(users).values({ email: env.adminEmail.toLowerCase(), name: env.adminName, passwordHash: hashPassword(env.appPassword.toLowerCase()), role: 'admin' }).onConflictDoNothing();
 }
 
 /* Is the console gated at all? Yes once any user exists (or a bootstrap
@@ -55,11 +55,23 @@ export async function findUserByEmail(email: string): Promise<User | null> {
   return u || null;
 }
 
-/* Checks a login; returns the user or null. */
-export async function authenticate(email: string, password: string): Promise<User | null> {
+/* Looks a person up by what they typed: their name, or their email. */
+export async function findUserByLogin(login: string): Promise<User | null> {
+  const key = login.trim().toLowerCase();
+  if (!key) return null;
+  const db = await getDb();
+  const [byEmail] = await db.select().from(users).where(eq(users.email, key));
+  if (byEmail) return byEmail;
+  const [byName] = await db.select().from(users).where(sql`lower(${users.name}) = ${key}`);
+  return byName || null;
+}
+
+/* Checks a login; returns the user or null. Passwords are compared
+   case-insensitively (the team's passwords are their own names). */
+export async function authenticate(login: string, password: string): Promise<User | null> {
   await ensureAdmin();
-  const u = await findUserByEmail(email);
-  if (!u || !u.active || !verifyPassword(password, u.passwordHash)) return null;
+  const u = await findUserByLogin(login);
+  if (!u || !u.active || !verifyPassword(password.toLowerCase(), u.passwordHash)) return null;
   const db = await getDb();
   await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, u.id));
   return u;
@@ -87,22 +99,25 @@ export async function currentUser(): Promise<SafeUser | null> {
 
 /* ---- admin operations ------------------------------------------------------ */
 
-export async function createUser(input: { email: string; name: string; password: string; role: Role; createdBy: string }): Promise<SafeUser> {
-  const email = input.email.trim().toLowerCase();
+export async function createUser(input: { email?: string; name: string; password: string; role: Role; createdBy?: string | null }): Promise<SafeUser> {
+  // Email is optional: people sign in with their name. A placeholder keeps
+  // the column unique.
+  const email = (input.email || '').trim().toLowerCase() || `${input.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')}@team.local`;
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Enter a valid email address');
   if (input.name.trim().length < 2) throw new Error('Enter the person\'s name');
-  if (input.password.length < 8) throw new Error('Password must be at least 8 characters');
+  if (input.password.length < 3) throw new Error('Password must be at least 3 characters');
   const db = await getDb();
   if (await findUserByEmail(email)) throw new Error('A user with that email already exists');
-  const [u] = await db.insert(users).values({ email, name: input.name.trim(), passwordHash: hashPassword(input.password), role: input.role, createdBy: input.createdBy }).returning();
+  if (await findUserByLogin(input.name)) throw new Error('A user with that name already exists');
+  const [u] = await db.insert(users).values({ email, name: input.name.trim(), passwordHash: hashPassword(input.password.toLowerCase()), role: input.role, createdBy: input.createdBy || null }).returning();
   return safe(u);
 }
 
 export async function setPassword(userId: string, password: string): Promise<void> {
-  if (password.length < 8) throw new Error('Password must be at least 8 characters');
+  if (password.length < 3) throw new Error('Password must be at least 3 characters');
   const db = await getDb();
   // Bumping the session version logs that person out everywhere.
-  await db.update(users).set({ passwordHash: hashPassword(password), sessionVersion: sql`${users.sessionVersion} + 1` }).where(eq(users.id, userId));
+  await db.update(users).set({ passwordHash: hashPassword(password.toLowerCase()), sessionVersion: sql`${users.sessionVersion} + 1` }).where(eq(users.id, userId));
 }
 
 export async function setActive(userId: string, active: boolean): Promise<void> {

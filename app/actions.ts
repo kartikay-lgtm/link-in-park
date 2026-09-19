@@ -315,11 +315,11 @@ export async function uploadWebUsersCsvAction(formData: FormData): Promise<Actio
 
 /* ---- admin: users --------------------------------------------------------- */
 
-export async function createUserAction(input: { email: string; name: string; role: Role; password?: string }): Promise<ActionResult<{ id: string; password: string }>> {
+export async function createUserAction(input: { email?: string; name: string; role: Role; password?: string }): Promise<ActionResult<{ id: string; password: string }>> {
   try {
     const admin = await requireAdmin();
     const password = input.password?.trim() || generatePassword();
-    const u = await createUser({ email: input.email, name: input.name, role: input.role === 'admin' ? 'admin' : 'member', password, createdBy: admin.id || '' });
+    const u = await createUser({ email: input.email || '', name: input.name, role: input.role === 'admin' ? 'admin' : 'member', password, createdBy: admin.id || null });
     await logActivity(admin, 'user.create', `${admin.name} created user ${u.name} (${u.email}, ${u.role})`, { target: u.email, details: { role: u.role } });
     revalidatePath('/admin');
     return { ok: true, data: { id: u.id, password } };
