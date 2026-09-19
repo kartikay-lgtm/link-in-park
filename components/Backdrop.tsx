@@ -18,7 +18,7 @@ export default function Backdrop() {
       if (!raf) raf = requestAnimationFrame(tick);
     };
     const tick = () => {
-      cx += (tx - cx) * 0.06; cy += (ty - cy) * 0.06;    // ease toward the cursor
+      cx += (tx - cx) * 0.08; cy += (ty - cy) * 0.08;    // ease toward the cursor
       el.style.setProperty('--mx', cx.toFixed(3));
       el.style.setProperty('--my', cy.toFixed(3));
       raf = Math.abs(tx - cx) + Math.abs(ty - cy) > 0.002 ? requestAnimationFrame(tick) : 0;
