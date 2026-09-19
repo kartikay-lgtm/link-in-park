@@ -12,7 +12,7 @@ export function RenameForm({ displayId, name, disabled }: { displayId: string; n
   if (!editing) {
     return (
       <div className="flex items-center gap-3">
-        <h1 className="text-[22px] font-semibold">{name || '(unnamed)'}</h1>
+        <h1 className="text-[28px] font-semibold leading-tight" style={{ letterSpacing: '-0.02em' }}>{name || '(unnamed)'}</h1>
         <button className="btn btn-sm muted" onClick={() => setEditing(true)} disabled={disabled}>Rename</button>
       </div>
     );

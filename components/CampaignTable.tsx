@@ -8,6 +8,7 @@ import CopyButton from './CopyButton';
 import Icon from './Icon';
 import FolderSidebar, { type FolderItem, type FolderKey } from './FolderSidebar';
 import MultiPicker from './MultiPicker';
+import Delta from './Delta';
 import { n } from './ui';
 
 /* One campaign as the list needs it - plain strings and numbers so it can be
@@ -25,6 +26,8 @@ export type ListRow = {
   signups: number | null;
   liveInstalls: number;   // webhook events since the last sync
   liveSignups: number;
+  before: { clicks: number; installs: number; signups: number } | null; // as of `beforeDays` ago
+  beforeDays: number;
   landings: number | null; // GA4 sessions (null when GA4 is not connected)
   users: number | null;    // Metabase users (null when not connected)
   active: boolean;
@@ -168,6 +171,8 @@ export default function CampaignTable({ rows, folders, mb }: { rows: ListRow[]; 
   }, [base, q, campaigns, idents, created, from, to, sort, folderById]);
 
   const totals = visible.reduce(add, zero());
+  const anyBefore = visible.some((r) => r.before);
+  const before = visible.reduce((t, r) => ({ clicks: t.clicks + (r.before?.clicks || 0), installs: t.installs + (r.before?.installs || 0), signups: t.signups + (r.before?.signups || 0) }), { clicks: 0, installs: 0, signups: 0 });
   const filtered = Boolean(q || campaigns.length || idents.length || created !== 'any');
   const byId = useMemo(() => new Map(rows.map((r) => [r.displayId, r])), [rows]);
 
@@ -224,8 +229,8 @@ export default function CampaignTable({ rows, folders, mb }: { rows: ListRow[]; 
 
       <div className="flex-1 min-w-0">
         {/* Where am I + which population */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="text-[15px] font-semibold flex items-center gap-1.5 flex-wrap min-w-0">
+        <div className="flex flex-wrap items-center gap-3 gap-y-3">
+          <div className="text-[18px] font-semibold flex items-center gap-1.5 flex-wrap min-w-0">
             <button type="button" className={crumbs.length || folder === 'unfiled' ? 'muted hover:underline font-medium' : ''} onClick={() => setFolder('all')}>All campaigns</button>
             {folder === 'unfiled' && <><span className="faint">/</span><span>Unfiled</span></>}
             {crumbs.map((c, i) => {
@@ -234,7 +239,7 @@ export default function CampaignTable({ rows, folders, mb }: { rows: ListRow[]; 
               return <span key={i} className="flex items-center gap-1.5"><span className="faint">/</span>{target && !last ? <button type="button" className="muted hover:underline font-medium" onClick={() => setFolder(target.id)}>{c}</button> : c}</span>;
             })}
           </div>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-3">
             <div className="seg" title="Linkrunner holds three kinds of campaign; this picks which to show">
               {([['marketing', 'Mine'], ['referral', 'Referral links'], ['app', 'App referrals'], ['all', 'Everything']] as const).map(([k, label]) => (
                 <button key={k} type="button" className={view === k ? 'on' : ''} onClick={() => { setView(k); setChecked(new Set()); }}>{label}<span className="cnt">{kindCount(k).toLocaleString('en-IN')}</span></button>
@@ -245,10 +250,10 @@ export default function CampaignTable({ rows, folders, mb }: { rows: ListRow[]; 
         </div>
 
         {/* Hero numbers for what is shown */}
-        <div className="hero">
-          <div><div className="k">Clicks</div><div className="v">{n(totals.clicks)}</div><div className="s">{visible.length.toLocaleString('en-IN')} campaign{visible.length === 1 ? '' : 's'}{filtered ? ' · filtered' : ''}</div></div>
-          <div><div className="k">Installs</div><div className="v">{n(totals.installs)}</div><div className="s">{totals.clicks ? `${pct(totals.installs, totals.clicks)} of clicks` : '\u00a0'}</div></div>
-          <div><div className="k">Sign-ups</div><div className="v">{n(totals.signups)}</div><div className="s">{totals.installs ? `${pct(totals.signups, totals.installs)} of installs` : '\u00a0'}</div></div>
+        <div className="hero mt-4">
+          <div><div className="k">Clicks</div><div className="v">{n(totals.clicks)}</div>{anyBefore ? <Delta now={totals.clicks} before={before.clicks} days={visible[0]?.beforeDays} /> : null}<div className="s">{visible.length.toLocaleString('en-IN')} campaign{visible.length === 1 ? '' : 's'}{filtered ? ' · filtered' : ''}</div></div>
+          <div><div className="k">Installs</div><div className="v">{n(totals.installs)}</div>{anyBefore ? <Delta now={totals.installs} before={before.installs} days={visible[0]?.beforeDays} /> : null}<div className="s">{totals.clicks ? `${pct(totals.installs, totals.clicks)} of clicks` : '\u00a0'}</div></div>
+          <div><div className="k">Sign-ups</div><div className="v">{n(totals.signups)}</div>{anyBefore ? <Delta now={totals.signups} before={before.signups} days={visible[0]?.beforeDays} /> : null}<div className="s">{totals.installs ? `${pct(totals.signups, totals.installs)} of installs` : '\u00a0'}</div></div>
           {mb && <div><div className="k">People</div><div className="v">{n(totals.signups + totals.users)}</div><div className="s">{n(totals.signups)} app · {n(totals.users)} web</div></div>}
         </div>
 

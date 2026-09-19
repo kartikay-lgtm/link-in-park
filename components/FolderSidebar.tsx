@@ -125,10 +125,10 @@ export default function FolderSidebar({ folders, counts, totalCount, unfiledCoun
   };
 
   return (
-    <aside className="w-full md:w-56 shrink-0 space-y-0.5">
+    <aside className="w-full md:w-60 shrink-0 space-y-1">
       {item('all', 'All campaigns', totalCount)}
       {item('unfiled', 'Unfiled', unfiledCount)}
-      <div className="section-title pt-4 pb-1.5 px-2">Folders</div>
+      <div className="section-title pt-5 pb-2 px-3" style={{ fontSize: 14 }}>Folders</div>
       {folders.map((f) => item(f.id, f.name, counts.get(f.id) || 0, f.depth, f))}
       {creatingUnder === null ? (
         <div className="py-1 pl-2 flex items-center gap-1">

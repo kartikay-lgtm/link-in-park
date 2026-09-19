@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import CopyButton from '@/components/CopyButton';
+import Delta from '@/components/Delta';
 import FolderSelect from '@/components/FolderSelect';
 import { NotesForm, RenameForm } from '@/components/InlineForms';
 import RedirectEditor from '@/components/RedirectEditor';
@@ -10,7 +11,7 @@ import TimeSeriesChart from '@/components/TimeSeriesChart';
 import WebUsersTable from '@/components/WebUsersTable';
 import { ago, n, when } from '@/components/ui';
 import { gaTotals, webUsersByCampaign } from '@/lib/analytics';
-import { getCampaignDetail, redirectsForIdentifiers } from '@/lib/campaigns';
+import { getCampaignDetail, redirectsForIdentifiers, totalsAsOf } from '@/lib/campaigns';
 import { configured, env } from '@/lib/env';
 import { listFolders } from '@/lib/folders';
 import { liveSince, recentEvents } from '@/lib/live';
@@ -35,14 +36,16 @@ export default async function CampaignDetail({ displayId, inModal = false }: { d
   const others = new Set(sharing.filter((r) => r.campaignDisplayId !== c.displayId).map((r) => r.identifier.toLowerCase()));
   const ownIdentifiers = identifiers.filter((i) => !others.has(i.toLowerCase()));
 
-  const [signups, ga, web, folderRows, live, feed] = await Promise.all([
+  const [signups, ga, web, folderRows, live, feed, ago30] = await Promise.all([
     signupsFor(c.displayId),
     gaTotals(identifiers),
     webUsersByCampaign([{ displayId: c.displayId, name: c.name, identifiers: ownIdentifiers }]),
     listFolders(),
     liveSince(c.displayId, c.statsAt),
     recentEvents(c.displayId, 25),
+    totalsAsOf(7, [c.displayId]),
   ]);
+  const before = ago30.byCampaign.get(c.displayId) || null;
   const liveInstalls = live.filter((e) => e.kind === 'install').length;
   const liveSignups = live.filter((e) => e.kind === 'signup').length;
   const folders = folderRows.map((f) => ({ id: f.id, name: f.name, parentId: f.parentId, path: f.path, depth: f.depth }));
@@ -58,16 +61,16 @@ export default async function CampaignDetail({ displayId, inModal = false }: { d
     for (const u of webUsers) if (u.createdDay) byDay.set(u.createdDay, (byDay.get(u.createdDay) || 0) + 1);
     const days = new Set<string>([...series.flatMap((s) => s.points.map((p) => p.date)), ...byDay.keys()]);
     const sorted = [...days].sort();
-    series.push({ name: 'Web users', color: SERIES_COLOR.clicks, points: sorted.map((d) => ({ date: d, value: byDay.get(d) || 0 })) });
+    series.push({ name: 'Web users', color: SERIES_COLOR.installs, points: sorted.map((d) => ({ date: d, value: byDay.get(d) || 0 })) });
     if (series[0]) { const m = new Map(series[0].points.map((p) => [p.date, p.value])); series[0].points = sorted.map((d) => ({ date: d, value: m.get(d) || 0 })); }
   }
 
   const overview = (
     <div className="space-y-5">
       <div className="hero" style={{ paddingTop: 0 }}>
-        <div><div className="k">Clicks</div><div className="v">{n(c.clicks)}</div><div className="s">Linkrunner · {ago(c.statsAt)}</div></div>
-        <div><div className="k">Installs</div><div className="v">{n(c.installs)}{liveInstalls > 0 && <span className="badge badge-ok ml-2 align-middle" title="Reported live since the last refresh">+{liveInstalls} live</span>}</div><div className="s">{pct(c.installs, c.clicks) ? `${pct(c.installs, c.clicks)} of clicks` : ' '}</div></div>
-        <div><div className="k">Sign-ups</div><div className="v">{n(c.signups)}{liveSignups > 0 && <span className="badge badge-ok ml-2 align-middle" title="Reported live since the last refresh">+{liveSignups} live</span>}</div><div className="s">{pct(c.signups, c.installs) ? `${pct(c.signups, c.installs)} of installs` : ' '}</div></div>
+        <div><div className="k">Clicks</div><div className="v">{n(c.clicks)}</div>{before && <Delta now={c.clicks || 0} before={before.clicks} days={ago30.days} />}<div className="s">Linkrunner · {ago(c.statsAt)}</div></div>
+        <div><div className="k">Installs</div><div className="v">{n(c.installs)}{liveInstalls > 0 && <span className="badge badge-ok ml-2 align-middle" title="Reported live since the last refresh">+{liveInstalls} live</span>}</div>{before && <Delta now={c.installs || 0} before={before.installs} days={ago30.days} />}<div className="s">{pct(c.installs, c.clicks) ? `${pct(c.installs, c.clicks)} of clicks` : ' '}</div></div>
+        <div><div className="k">Sign-ups</div><div className="v">{n(c.signups)}{liveSignups > 0 && <span className="badge badge-ok ml-2 align-middle" title="Reported live since the last refresh">+{liveSignups} live</span>}</div>{before && <Delta now={c.signups || 0} before={before.signups} days={ago30.days} />}<div className="s">{pct(c.signups, c.installs) ? `${pct(c.signups, c.installs)} of installs` : ' '}</div></div>
         {web.configured && <div><div className="k">Web users</div><div className="v">{n(webUsers.length)}</div><div className="s">{webUsers.filter((u) => u.candidateCompleted || u.bossCompleted).length} completed onboarding</div></div>}
         {web.configured && <div><div className="k">People</div><div className="v">{n((c.signups || 0) + webUsers.length)}</div><div className="s">{n(c.signups)} app · {webUsers.length} web</div></div>}
         {ga.configured && <div><div className="k">Landings</div><div className="v">{mainId ? n(gaMain?.sessions ?? 0) : '—'}</div><div className="s">GA4 sessions</div></div>}

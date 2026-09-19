@@ -511,3 +511,41 @@ export async function redirectsForIdentifiers(ids: string[]): Promise<Redirect[]
   const db = await getDb();
   return db.select().from(redirects).where(inArray(redirects.identifier, ids));
 }
+
+/* Totals as they stood `days` ago (the latest snapshot at or before that
+   moment, per campaign), for "vs previous N days" comparisons. Campaigns
+   without a snapshot that old count as 0 then - they were new. */
+export async function totalsAsOf(days: number, displayIds?: string[]): Promise<{ clicks: number; installs: number; signups: number; byCampaign: Map<string, { clicks: number; installs: number; signups: number }>; days: number }> {
+  const db = await getDb();
+  // Use `days` when the history reaches that far; otherwise the oldest
+  // snapshot we have (down to one day), so a new console still compares.
+  const [oldest] = await db.select({ at: sql<string | null>`min(${reportingSnapshots.fetchedAt})` }).from(reportingSnapshots);
+  const oldestAt = oldest?.at ? new Date(oldest.at) : null;
+  const available = oldestAt ? Math.floor((Date.now() - oldestAt.getTime()) / 86400_000) : 0;
+  const useDays = Math.max(1, Math.min(days, available));
+  const cutoff = new Date(Date.now() - useDays * 86400_000);
+  const empty = { clicks: 0, installs: 0, signups: 0, byCampaign: new Map<string, { clicks: number; installs: number; signups: number }>(), days: useDays };
+  if (available < 1) return empty;
+  // Latest snapshot at or before the cutoff, per campaign. Done with the
+  // query builder (not raw SQL) so it runs the same on the embedded database
+  // and on Postgres.
+  const latest = db
+    .select({ id: reportingSnapshots.campaignDisplayId, at: sql<Date>`max(${reportingSnapshots.fetchedAt})`.as('at') })
+    .from(reportingSnapshots)
+    .where(displayIds ? and(sql`${reportingSnapshots.fetchedAt} <= ${cutoff}`, inArray(reportingSnapshots.campaignDisplayId, displayIds)) : sql`${reportingSnapshots.fetchedAt} <= ${cutoff}`)
+    .groupBy(reportingSnapshots.campaignDisplayId)
+    .as('latest');
+  const rows = await db
+    .select({ id: reportingSnapshots.campaignDisplayId, clicks: reportingSnapshots.clicks, installs: reportingSnapshots.installs, signups: reportingSnapshots.signups })
+    .from(reportingSnapshots)
+    .innerJoin(latest, and(eq(reportingSnapshots.campaignDisplayId, latest.id), eq(reportingSnapshots.fetchedAt, latest.at)));
+  const byCampaign = empty.byCampaign;
+  let clicks = 0, installs = 0, signups = 0;
+  for (const r of rows) {
+    if (byCampaign.has(r.id)) continue;
+    const v = { clicks: r.clicks || 0, installs: r.installs || 0, signups: r.signups || 0 };
+    byCampaign.set(r.id, v);
+    clicks += v.clicks; installs += v.installs; signups += v.signups;
+  }
+  return { clicks, installs, signups, byCampaign, days: useDays };
+}

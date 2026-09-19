@@ -1,3 +1,4 @@
+import PageTitle from '@/components/PageTitle';
 import Link from 'next/link';
 import CreateFlow from '@/components/CreateFlow';
 import { configured, env } from '@/lib/env';
@@ -15,7 +16,7 @@ export default async function NewLinkPage({ searchParams }: { searchParams: Prom
   return (
     <div className="max-w-3xl space-y-5">
       <div>
-        <h1 className="text-[22px] font-semibold">New link</h1>
+        <PageTitle eyebrow="Create a tracked Linkrunner link" title="New link" />
       </div>
       {!configured.linkrunner && (
         <div className="alert alert-warn">Linkrunner is not connected, so nothing can be created yet. <Link className="underline" href="/setup">Setup</Link></div>

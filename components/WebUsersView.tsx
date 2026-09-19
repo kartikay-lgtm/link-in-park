@@ -103,7 +103,7 @@ export default function WebUsersView({ users, matches }: { users: WebUser[]; mat
     for (const d = new Date(keys[0] + 'T00:00:00Z'); d.toISOString().slice(0, 10) <= keys[keys.length - 1]; d.setUTCDate(d.getUTCDate() + 1)) out.push(d.toISOString().slice(0, 10));
     return [
       { name: 'Signed up', color: 'var(--series-blue)', points: out.map((d) => ({ date: d, value: days.get(d)?.signed || 0 })) },
-      { name: 'Completed onboarding', color: 'var(--series-aqua)', points: out.map((d) => ({ date: d, value: days.get(d)?.done || 0 })) },
+      { name: 'Completed onboarding', color: 'var(--series-orange)', points: out.map((d) => ({ date: d, value: days.get(d)?.done || 0 })) },
     ];
   }, [focus]);
 
@@ -250,14 +250,20 @@ export default function WebUsersView({ users, matches }: { users: WebUser[]; mat
             <button type="button" className="btn btn-sm muted ml-auto" onClick={() => setSelected(new Set())}><Icon name="x" size={14} />Clear selection</button>
           </div>
         )}
-        <div className="grid gap-3 sm:grid-cols-5">
-          {steps.map((st, i) => (
-            <div key={st.label} className="space-y-1.5">
-              <div className="text-[12px] muted font-medium">{st.label}</div>
-              <div className="text-[24px] font-semibold tabular" style={{ letterSpacing: '-0.02em', lineHeight: 1.1 }}>{n(st.value)}<span className="faint text-[13px] font-normal ml-1.5">{i === 0 ? '' : pct(st.value, totals.users)}</span></div>
-              <div className="h-1.5 rounded-full" style={{ background: 'var(--panel-2)' }}><div className="h-1.5 rounded-full" style={{ width: `${totals.users ? Math.max(2, (100 * st.value) / totals.users) : 0}%`, background: i === 0 ? 'var(--ink)' : i === 2 ? 'var(--series-blue)' : 'var(--series-aqua)' }} /></div>
-            </div>
-          ))}
+        <div className="grid gap-x-8 gap-y-4 md:grid-cols-2">
+          {steps.map((st, i) => {
+            const share = totals.users ? Math.max(1.5, (100 * st.value) / totals.users) : 0;
+            const tone = ['bar-dark', 'bar-blue', 'bar-orange', 'bar-violet', 'bar-green'][i];
+            return (
+              <div key={st.label} className="space-y-2">
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-[13.5px] font-semibold">{st.label}</span>
+                  <span className="text-[13px] tabular"><b className="text-[15px]">{n(st.value)}</b>{i > 0 && <span className="muted ml-2">|</span>}{i > 0 && <span className="muted ml-2">{pct(st.value, totals.users)}</span>}</span>
+                </div>
+                <div className={`bar ${tone}`}><i style={{ width: `${share}%` }} /></div>
+              </div>
+            );
+          })}
         </div>
       </div>
 

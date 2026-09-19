@@ -47,7 +47,7 @@ export type Point = { date: string; value: number };
 export type Series = { name: string; color: string; points: Point[] };
 
 // Categorical slots, validated: blue / orange / aqua.
-export const SERIES_COLOR = { clicks: 'var(--series-blue)', installs: 'var(--series-orange)', signups: 'var(--series-aqua)' } as const;
+export const SERIES_COLOR = { clicks: 'var(--series-blue)', installs: 'var(--series-orange)', signups: 'var(--series-blue)' } as const;
 
 /* Sign-ups per day, from user records. Every day between the first and last
    sign-up is present (zeros filled) so gaps read as zero, not as missing.

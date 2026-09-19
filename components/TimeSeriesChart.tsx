@@ -129,8 +129,11 @@ export default function TimeSeriesChart({ series, title, note, defaultRange = 30
               const d = pts.map((p, i) => (p ? `${i === 0 || !pts[i - 1] ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}` : '')).join(' ');
               const lastIdx = r.values.map((v, i) => (v === null ? -1 : i)).filter((i) => i >= 0).pop();
               const last = lastIdx === undefined ? null : pts[lastIdx];
+              const firstPt = pts.find(Boolean), lastPt = [...pts].reverse().find(Boolean);
+              const area = view.rows.length === 1 && firstPt && lastPt ? `${d} L${lastPt[0].toFixed(1)},${(padT + innerH).toFixed(1)} L${firstPt[0].toFixed(1)},${(padT + innerH).toFixed(1)} Z` : null;
               return (
                 <g key={r.name}>
+                  {area && <path d={area} fill={r.color} opacity="0.08" />}
                   <path d={d} fill="none" stroke={r.color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
                   {last && (
                     <>

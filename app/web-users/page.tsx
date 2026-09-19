@@ -1,3 +1,4 @@
+import PageTitle from '@/components/PageTitle';
 import Link from 'next/link';
 import CsvUpload from '@/components/CsvUpload';
 import WebUsersView, { type UtmMatch } from '@/components/WebUsersView';
@@ -37,15 +38,12 @@ export default async function WebUsersPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-[22px] font-semibold">Web users</h1>
-        <div className="flex items-center gap-3">
-          <span className="faint text-xs">
-            {source.kind === 'store' && source.lastUpload ? `last upload ${when(source.lastUpload)}` : source.kind === 'csv' ? `CSV · ${when(source.modified)}` : source.kind === 'metabase' ? 'live from Metabase' : ''}
-          </span>
-          <CsvUpload />
-        </div>
-      </div>
+      <PageTitle eyebrow="People who onboarded on the web" title="Web users" right={<>
+        <span className="faint text-xs mr-1">
+          {source.kind === 'store' && source.lastUpload ? `last upload ${when(source.lastUpload)}` : source.kind === 'csv' ? `CSV · ${when(source.modified)}` : source.kind === 'metabase' ? 'live from Metabase' : ''}
+        </span>
+        <CsvUpload />
+      </>} />
       {error && <div className="alert alert-bad">{error}</div>}
       {source.kind === 'none' ? (
         <div className="alert alert-warn">No data yet. Export the &quot;Webflow Users&quot; question from Metabase as CSV and press Upload CSV, or connect Metabase in <Link href="/setup" className="underline">Setup</Link>.</div>
