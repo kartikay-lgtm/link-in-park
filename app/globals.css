@@ -42,7 +42,7 @@
 
 html { color-scheme: light; }
 body {
-  background: var(--bg-gradient) fixed, var(--bg);
+  background: var(--bg);
   min-height: 100vh;
   color: var(--ink);
   font-family: var(--font-sans), "Montserrat", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -224,3 +224,34 @@ button.badge:hover { background: var(--tint); color: var(--accent-ink); }
 .bar-green > i { background: linear-gradient(90deg, #5fd48c, #17a34a); }
 .bar-violet > i { background: linear-gradient(90deg, #b48cff, #7c3aed); }
 .bar-dark > i { background: linear-gradient(90deg, #4a4e56, #17191c); }
+
+/* ── Moving backdrop ──────────────────────────────────────────────────────────
+   A base gradient plus four blurred colour blobs that drift slowly and lean
+   toward the cursor (--mx / --my, set from Backdrop.tsx). */
+.backdrop {
+  position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none;
+  background: var(--bg-gradient);
+  --mx: 0; --my: 0;
+}
+.backdrop .blob {
+  position: absolute; border-radius: 50%; filter: blur(70px); opacity: .85; will-change: transform;
+  transform: translate3d(calc(var(--mx) * var(--px, 24px)), calc(var(--my) * var(--py, 24px)), 0);
+}
+.backdrop .blob::after { content: ''; position: absolute; inset: 0; border-radius: inherit; animation: drift var(--dur, 26s) ease-in-out infinite alternate; animation-delay: var(--delay, 0s); }
+.b1 { width: 62vw; height: 62vw; left: -18vw; top: -26vw; --px: 30px; --py: 20px; }
+.b1::after { background: radial-gradient(circle at 40% 40%, rgba(255, 173, 112, .85), rgba(255, 173, 112, 0) 65%); --dur: 28s; }
+.b2 { width: 58vw; height: 58vw; right: -20vw; top: -14vw; --px: -26px; --py: 22px; }
+.b2::after { background: radial-gradient(circle at 60% 40%, rgba(120, 170, 255, .85), rgba(120, 170, 255, 0) 65%); --dur: 32s; --delay: -9s; }
+.b3 { width: 50vw; height: 50vw; left: 18vw; bottom: -30vw; --px: 18px; --py: -26px; }
+.b3::after { background: radial-gradient(circle at 50% 50%, rgba(255, 214, 170, .75), rgba(255, 214, 170, 0) 65%); --dur: 36s; --delay: -17s; }
+.b4 { width: 46vw; height: 46vw; right: 6vw; bottom: -24vw; --px: -20px; --py: -18px; }
+.b4::after { background: radial-gradient(circle at 50% 50%, rgba(150, 200, 255, .7), rgba(150, 200, 255, 0) 65%); --dur: 30s; --delay: -5s; }
+@keyframes drift {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  33%  { transform: translate3d(6vw, 4vw, 0) scale(1.08); }
+  66%  { transform: translate3d(-4vw, 7vw, 0) scale(.95); }
+  100% { transform: translate3d(3vw, -5vw, 0) scale(1.04); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .backdrop .blob::after { animation: none; }
+}

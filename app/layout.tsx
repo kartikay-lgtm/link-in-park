@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Montserrat } from "next/font/google";
 import Link from "next/link";
+import Backdrop from "@/components/Backdrop";
 import Header from "@/components/Header";
 import "./globals.css";
 import { configured } from "@/lib/env";
@@ -25,6 +26,7 @@ export default async function RootLayout({ children, modal }: { children: React.
   return (
     <html lang="en" className={montserrat.variable}>
       <body>
+        <Backdrop />
         <div className="mx-auto max-w-[1320px] px-4 py-5 sm:px-6 sm:py-7">
           <div className="shell">
             <Header isAdmin={isAdmin} userName={user?.name || null} right={<>
